@@ -27,6 +27,9 @@
 	* teki/tekilib/wise.tcl:
 		Fixed incorrect <EOL> sequence in repository.
 
+	* mkIndex.tcl.in:
+		Fix for new style pathnames on cygwin.
+
 2000-07-22  Brent Welch <welch@ajubasolutions.com>
 
     * Makefile.in - bug fix for static builds and install-libraries
