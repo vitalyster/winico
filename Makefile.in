@@ -67,7 +67,7 @@ GENERIC_HDRS=
 # have been added to the configure script.
 #========================================================================
 
-winico_EXTRA_FILES = license.terms
+winico_EXTRA_FILES = license.terms Readme
 
 #========================================================================
 # Nothing of the variables below this line need to be changed.  Please
@@ -212,6 +212,7 @@ install: all install-binaries install-libraries install-doc
 
 install-binaries: binaries install-lib-binaries install-bin-binaries
 	$(INSTALL_DATA) license.terms $(pkglibdir)/license.terms
+	$(INSTALL_DATA) Readme $(pkglibdir)/Readme
 	$(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE)
 
 #========================================================================

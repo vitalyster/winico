@@ -22,6 +22,24 @@ of the application (a solution similar to Win95 would require patching the core)
 Winico is available at <http://ftp.bj-ig.de/pub/tcltk/>
 (winicoxx.zip)
 
+Update Sept 22, 1999:
+       contact: Scott Redman, Scriptics Corporation
+       redman@scriptics.com
+
+       Created a new TEA-compliant Makefile system, using configure.in
+       and Makefile.in, plus a few more files.  Modified the source
+       code to use Tcl Stubs.  Tested and works with Tcl/Tk 8.2.0+.
+       Since Tcl/Tk 8.2.0 does not work with Win32s, the new make
+       system will not work on Win32s either.  The new system does not
+       require the use of Teki to install, as is the case with all TEA
+       extensions.
+
+       To reflect my changes, I have changed the version number to 0.2.
+       
+       You can obtain the source code for winico from the Scriptics
+       CVS repository.  I will be sending my changes to Leo Schubert
+       so that he can incorporate my changes as he wishes.
+
 Installation
 --------------------------------------
 "winico" wants to be installed with the "teki"-Extension installer
