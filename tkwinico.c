@@ -874,36 +874,81 @@ typedef struct _NOTIFYICONDATA { // nid
 #ifdef _MSC_VER
 #include <shellapi.h>
 #endif
-static HWND CreateTaskbarHandlerWindow(void) ;
-static int TaskbarOperation (Tcl_Interp* interp,IcoInfo* icoPtr,int oper,HICON hIcon,char* txt) {
-  static FARPROC notify_func=NULL;
-  static HMODULE hmod=NULL ;
-  int result;
-  NOTIFYICONDATA ni;
-  if(notify_func==NULL && hmod==NULL) {
-    hmod=GetModuleHandle("SHELL32.DLL");
-    if(hmod==NULL)
-      hmod=LoadLibrary("SHELL32.DLL");
-    if(hmod==NULL){
-      Tcl_AppendResult(interp,"Could not Load SHELL32.DLL",(char*)0);
-      return TCL_ERROR;
-    }
-    if((notify_func=GetProcAddress(hmod,"Shell_NotifyIconA"))==NULL){
-      Tcl_AppendResult(interp, "Could not get address of Shell_NotifyIconA",(char*)0);
-      return TCL_ERROR;
-    }
-  } else if (notify_func==NULL) {
-    Tcl_AppendResult(interp,"You probably don't have a Win95 shell",(char*)NULL);
-    return TCL_ERROR;
-  }
-  ni.cbSize=sizeof(NOTIFYICONDATA);
+
+static HWND CreateTaskbarHandlerWindow(void);
+
+static FARPROC notify_funcA=NULL;
+static FARPROC notify_funcW=NULL;
+static HMODULE hmod=NULL ;
+
+int NotifyA (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt) {
+  NOTIFYICONDATAA ni;
+  Tcl_DString dst;
+  CHAR* str;
+
+  ni.cbSize=sizeof(NOTIFYICONDATAA);
   ni.hWnd=CreateTaskbarHandlerWindow();
   ni.uID=icoPtr->id;
   ni.uFlags=NIF_ICON | NIF_TIP | NIF_MESSAGE;
   ni.uCallbackMessage=ICON_MESSAGE;
   ni.hIcon=(HICON)hIcon;
-  strncpy(ni.szTip,txt,63);
-  result=notify_func(oper,&ni);
+
+  str=(CHAR*)Tcl_UtfToExternalDString(NULL,txt,-1,&dst);
+  strncpy(ni.szTip,str,63);
+  ni.szTip[63] = 0;
+  Tcl_DStringFree(&dst);
+  return notify_funcA(oper,&ni);
+}
+
+int NotifyW (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt) {
+  NOTIFYICONDATAW ni;
+  Tcl_DString dst;
+  WCHAR* str;
+  Tcl_Encoding Encoding;
+
+  ni.cbSize=sizeof(NOTIFYICONDATAW);
+  ni.hWnd=CreateTaskbarHandlerWindow();
+  ni.uID=icoPtr->id;
+  ni.uFlags=NIF_ICON | NIF_TIP | NIF_MESSAGE;
+  ni.uCallbackMessage=ICON_MESSAGE;
+  ni.hIcon=(HICON)hIcon;
+
+  Encoding = Tcl_GetEncoding(NULL, "unicode");
+  str=(WCHAR*)Tcl_UtfToExternalDString(Encoding,txt,-1,&dst);
+  Tcl_FreeEncoding(Encoding);
+  wcsncpy(ni.szTip,str,63);
+  ni.szTip[63] = 0;
+  Tcl_DStringFree(&dst);
+  return notify_funcW(oper,&ni);
+}
+
+static int TaskbarOperation (Tcl_Interp* interp,IcoInfo* icoPtr,int oper,HICON hIcon,char* txt) {
+  int result;
+
+  if(notify_funcA==NULL && notify_funcW==NULL && hmod==NULL) {
+    hmod=GetModuleHandle("SHELL32.DLL");
+    if(hmod==NULL)
+      hmod=LoadLibrary("SHELL32.DLL");
+    if(hmod==NULL){
+      Tcl_AppendResult(interp,"Could not Load SHELL32.DLL",(char*)NULL);
+      return TCL_ERROR;
+    }
+    if((notify_funcW=GetProcAddress(hmod,"Shell_NotifyIconW"))==NULL) {
+      if((notify_funcA=GetProcAddress(hmod,"Shell_NotifyIconA"))==NULL) {
+        Tcl_AppendResult(interp, "Could not get address of Shell_NotifyIconW or Shell_NotifyIconA",
+			 (char*)NULL);
+        return TCL_ERROR;
+      }
+    }
+  } else if (notify_funcA==NULL && notify_funcW==NULL) {
+    Tcl_AppendResult(interp,"You probably don't have a Windows shell",(char*)NULL);
+    return TCL_ERROR;
+  }
+  if (notify_funcW!=NULL) {
+    result=NotifyW(icoPtr,oper,hIcon,txt);
+  } else {
+    result=NotifyA(icoPtr,oper,hIcon,txt);
+  }
   sprintf(interp->result,"%d",result);
   if(result==1) {
     if  (oper==NIM_ADD || oper==NIM_MODIFY) {

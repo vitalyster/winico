@@ -1,3 +1,12 @@
+2004-11-02  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* tkwinico.c:       Applied patch #1084268 (by Sergei Golovan)
+	                    to support unicode tooltips.
+	
+	* win/Makefile.vc:  Incremented version to 0.6
+	* configure.in:
+	* configure:
+	
 2004-04-21  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
 	* tkwinico.c: Modified to support reading files from Tcl virtual
