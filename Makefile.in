@@ -133,6 +133,7 @@ MAKE_SHARED_LIB = @MAKE_SHARED_LIB@
 MAKE_STATIC_LIB = @MAKE_STATIC_LIB@
 OBJEXT = @OBJEXT@
 RANLIB = @RANLIB@
+SHARED_BUILD = @SHARED_BUILD@
 SHLIB_CFLAGS = @SHLIB_CFLAGS@
 SHLIB_LD = @SHLIB_LD@
 SHLIB_LDFLAGS = @SHLIB_LDFLAGS@
@@ -214,7 +215,9 @@ install: all install-binaries install-libraries install-doc
 install-binaries: binaries install-lib-binaries install-bin-binaries
 	$(INSTALL_DATA) $(srcdir)/license.terms $(pkglibdir)
 	$(INSTALL_DATA) $(srcdir)/Readme $(pkglibdir)
-	$(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE)
+	if test "x${SHARED_BUILD}" = "x1" ; then \
+	    $(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE) ; \
+	fi
 
 #========================================================================
 # This rule installs platform-independent files, such as header files.

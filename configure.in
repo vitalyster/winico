@@ -171,6 +171,7 @@ SC_ENABLE_THREADS
 #--------------------------------------------------------------------
 
 SC_ENABLE_SHARED
+AC_SUBST(SHARED_BUILD)
 
 #--------------------------------------------------------------------
 # This macro figures out what flags to use with the compiler/linker
@@ -213,8 +214,10 @@ fi
 # link against the non-stubbed Tcl library.
 #--------------------------------------------------------------------
 
-AC_DEFINE(USE_TCL_STUBS)
-AC_DEFINE(USE_TK_STUBS)
+if test "${SHARED_BUILD}" = "1" ; then
+    AC_DEFINE(USE_TCL_STUBS)
+    AC_DEFINE(USE_TK_STUBS)
+fi
 
 #--------------------------------------------------------------------
 # This macro generates a line to use when building a library.  It
