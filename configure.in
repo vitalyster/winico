@@ -270,12 +270,7 @@ AC_SUBST(SHLIB_LD_LIBS)
 
 SC_PROG_TCLSH
 
-AC_PATH_PROGS(WISH_PROG, wish8.2${EXEEXT} wish82${EXEEXT} wish82d${EXEEXT} wish${EXEEXT}, :, ${exec_prefix}/bin:${prefix}/bin:${TK_BIN_DIR}:${TK_BIN_DIR}/../bin:${PATH})
-
-if test "x${WISH_PROG}" = "x:" ; then
-    AC_MSG_WARN(No wish executable found.  You will have to build the pkgIndex.tcl file manually.)
-fi
-AC_SUBST(WISH_PROG)
+SC_PROG_WISH
 
 #--------------------------------------------------------------------
 # Finally, substitute all of the various values into the Makefile.
