@@ -323,8 +323,8 @@ install-lib-binaries: installdirs
 	done
 	@list='$(lib_BINARIES)'; for p in $$list; do \
 	  if test -f $$p; then \
-	    echo " $(RANLIB) $(DESTDIR)$(bindir)/$$p"; \
-	    $(RANLIB) $(DESTDIR)$(bindir)/$$p; \
+	    echo " $(RANLIB) $(DESTDIR)$(libdir)/$$p"; \
+	    $(RANLIB) $(DESTDIR)$(libdir)/$$p; \
 	  else :; fi; \
 	done
 
