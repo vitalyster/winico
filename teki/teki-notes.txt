@@ -1,0 +1,71 @@
+Notes on URLs
+
+     The URL will be for a file that is a *.tek file.  We will grab it,
+     saving the URL so that we can install other files.
+
+     Another type of URL will be a table-of-contents file, which is
+     a list of n-tuples.  Each n-tuple will contain:
+         package-name description URL
+     Examples:
+         Tcl-DP  {Distributed programming extension to Tcl} {http://.../dp.tek}
+
+----------
+I'm still not happy with the name -- "practcl" is too
+many syllables, and doesn't really reflect the point of
+the package, and looks bad.  It's a Wish Installer or a
+Tcl Installer, so maybe Winst?  Tinst?  WinTin?  WinstTin?
+WinsTcl?  Winsical (Wish installer for Tcl)  Genie?
+(granter of wishes :-)
+
+In any case, there's a couple of issues we have to cover.
+First, the UI should look like WISE, and 
+
+
+tclPkgInfo global variable
+    stores exec_prefix, prefix, tclConfig.sh, spamGlobals
+
+pkgIndex files
+    package ifneeded ....
+    set elements in tcl_pkgInfo variable
+       - or -
+    use packages name space
+
+Add [info library]/pkgInfo.tcl to core
+    sets the tclPkgInfo array, defines aux procs
+init.tcl sources pkgInfo.tcl
+
+Extension .tcl files:
+    [info library]/$pkg$ver/
+    $env(TCL_LIBRARY_PATH)/$pkg$ver/
+    any of tcl_pkgPath
+    $tclPkgInfo(prefix)/pkg$ver/
+    user selected
+
+Extension .dll (.so) files
+    [info library]/$pkg$ver/
+    $env(TCL_LIBRARY_PATH)/$pkg$ver/
+    any of tcl_pkgPath
+    $tclPkgInfo(exec_prefix)/pkg$ver/
+    user selected
+
+Extensions to bundles
+    .spm file format:
+    set installInfo(packages) {...}
+    set installInfo($pkg,name) dp
+    set installInfo($pkg,version) dp
+
+
+package install <bundle-file> ?package ...?
+
+In unix:
+    install*
+        #!tclsh
+        package install foo.spm {packages}
+
+--------------
+Low priority:
+Should modify registry (what?)
+    Allows unstaller to run
+
+Very low priority:
+    Allow extension writer to add icon

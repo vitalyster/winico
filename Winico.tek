@@ -1,0 +1,44 @@
+# TekiFile 1.0
+#
+# TEKI install file for sample extension
+#
+
+System Names =  { {Win95/NT Win* *} }
+
+Package Id. = winico01
+
+Package Name = Winico
+Version = 0.1
+Description = Windows Icon Extension Version 0.1 Beta
+Requires = Tcl 8.0
+
+Teki File = winico.tek
+Update URL = 
+Register URL = 
+Source URL = 
+
+Source Directory = .
+Destination Directory = Winico01
+Copyright = license.terms
+Information File = Readme
+#Copyright = *
+#Information File = *
+#Tcl Files = testico.tcl
+Tcl Files = winico.tcl
+Data Files = smiley.ico
+Document Directory = .
+#Document Files = doc/*
+#Example Files = examples/*/*
+Document Files = {}
+Example Files = testico.tcl
+
+Object Files =  {Win95/NT winico01.dll}  
+
+#
+# Defaults for "typical" install
+#
+Default Packages = winico01
+Default Architecture = Win95/NT
+Default Install Documentation = 0
+Default Install Examples = 1
+Default Install Data =     1

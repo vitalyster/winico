@@ -1,0 +1,37 @@
+8/7/97
+    o Broke out the utility code (Debug, Undo, Progress, etc) into
+      packages.
+    o Added a progress bar for the Web downloading
+    o Tons of little changes to UI
+
+8/4/97
+    o Made the package wizard not come up if there's only one package
+      to be installed.
+    o Made architecture list that comes up in the wizard match what's
+      available.  If no object files need to be installed, the wizard
+      is skipped.
+    o Made teki file bundling simpler.  Now, a teki bundle file just calls
+      TekiReadFile for all it's bundled .tek files (each in its own
+      subdirectory), and then fixes up the srcDir attribute of the 
+      package along with the defaults.  This change makes it much
+      easier to throw together bundles.
+    o Moved system names definition from the .tek file into the
+      installer code.  This means that several predefined systems
+      are available, but that the user must add new system names
+      to tekiInfo(systemNames) by hand in the code.  This should
+      be changed so that there is a TekiRegisterSystemName function
+      that registers a new name and checks for duplicates.
+    o Broke wizard code into several functions, which makes the
+      implementation much cleaner.
+
+7/27/97
+    o Added code to return errorCode and errorInfo (per Mark Diekhans)
+    o Bug: New Tk window for each `wizard' screen is annoying, as they
+      are each positioned in different places on the screen.
+      Soln: Changed code to withdraw the wizard rather than destroying
+      and recreating it each time.
+    o Improved error handling inside TekiInstall so that it allows
+      the user to continue istalling other packages even if one
+      package installation fails.
+    o Gave a title to the window that selects the "install directory" 
+      (in TekiGetDirName)

@@ -1,0 +1,52 @@
+Support in the Tcl core
+
+There are two ways we could support TEKI in the Tcl core.
+One is to include the installer interface (as an auto_laod file),
+the other is to include just the support needed to setup Teki
+packages.
+
+When Teki installs a package, it creates a pkgIndex.tcl file
+for the package.  The pkgIndex.tcl
+files set entries in the global array tclPkgInfo -- this
+array contains information about all the packages available.
+After setting values in tclPkgInfo, the TclPkgInit function
+is called with a single argument, the package id (e.g., dp4.0).
+This id is used to index into the tclPkgInfo array.
+
+TclPkgInit looks at tcl_platform(os) and tcl_platform(osVersion)
+to determine what files, if any, should be loaded when a
+package require is issued.  Assuming that the package has been
+installed for the run-time architecture, TekiPkgInit will
+call package ifneeded, announcing the availability of the package.
+
+When a package require is issued for a Teki package, the 
+TekiPkgSetup function is called with the package id and the
+system name (e.g., "solaris").  TekiPkgSetup loads and sources
+the appropriate package files for the architecture.
+
+These two functions, TekiPackageInit and TekiPackageSetup, 
+should go in the core.  They're in teki.tcl, towards the bottom
+of the file.
+
+BTW, is there a reason why the core doesn't source the pkgIndex.tcl
+files on initialization?  It doesn't right now, which means the
+first time you run "package names", you only see Tcl and Tk,
+regardless of the number of packages installed.  However, once
+the package unknown procedure is called, all the package names
+appear, whether they've been loaded or not.  Seems strange to me.
+
+One other little bug that may have already been fixed.
+The auto_path under windows gets set to the 4 element list
+
+   {C:/Program Files/TCL/lib/tcl7.6}
+   C:/Program
+   Files/TCL/lib
+   C:/PROGRA~1/TCL/lib/tk4.2
+
+if you install Tcl in C:\Program Files\Tcl.  The space
+in tcl_pkgPath (= "C:/Program Files/TCL/lib") is fooling it,
+I think tcl_pkgPath should be set to {{C:/Program Files/TCL/lib}},
+(i.e., a list with one element), right?   This bug makes a mess
+of loading packages under Windows...
+
+

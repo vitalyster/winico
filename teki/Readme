@@ -1,0 +1,90 @@
+TEK (Tcl Extension Kit)
+
+Teki is a utility that installs and manages dynamically
+loadable packages in Tcl/Tk.  It has a graphical user interface
+so you can easily see what packages are loaded, and simplifies the
+task of installing and delivering new Tcl/Tk extensions.  Teki
+consists of two parts, one for extension writers and one for
+extension users.
+
+Extension writers use teki to make their extensions more easily
+installable by delivering a teki install file (extension .tek),
+which tells the system which files are in the package, for their
+extension. The format of the teki install file is described in tek.txt.
+Teki.tcl reads the teki install file and installs the extension in a
+user specified location.  The install file can also install documentation,
+examples, data file, and platform-specific binaries, and will arrange
+to have them auto-loaded when the Tcl "package require" command is
+executed.
+
+Once an extension has a teki install file, extension users can download
+the tar or zip file with the code and teki file, unpack it, and install
+it using teki by running "wish -f teki.tcl".  The user interface lists
+the installed packages and the readme file for the selected package.
+To install the package, the user selects the "Install..." menu item in
+the "File" menu and selects the teki install file through the file
+selection box.  The new package joins the list of installed packages.
+To use the installed package, the script simply uses the "package
+require" command in Tcl.
+
+By clicking on one of the installed packages, the user can view the
+README associated with that package, if it is available.  The user can
+uninstall the selected package using the "Uninstall" menu item in the
+"File" menu.
+
+The main advantage of teki is that it provides a simple way for users to
+install extensions needed for Tcl/Tk in a platform independent way.
+I have provided several sample packages (in the bundle subdirectory)
+to illustrate its use.  I have also included a template C extension
+(in the template subdirectory) that can be compiled on most unix
+workstations and using VC++ on windows (thanks to Ray Johnson and
+Scott Stanton for the base for this code).
+
+----------------
+Installation
+
+Run the command "patch-core.tcl" before you run teki.  This will create
+the file $tcl_library/teki.tcl and modify $tcl_library/tclIndex so that
+the teki support commands autoload.
+
+Run teki.tcl.  The interface is pretty obvious: the bottom part of the
+main window (the browser) lists the available packages.  If you select
+a package, the README for that package (if available) is shown in
+the top window.  You can select multiple packages in the browser using
+shift or control keys.
+
+The File->Install (install option in the file menu) installs one or
+more new packages.  It will prompt you to for a .tek file (which contains
+all the installation parameters for the package).  I've included a bunch of
+example packages in the bundle/ directory.  Try using the file
+bundle/sample/sample.tek (this is a tcl-only package that defines
+one command, "sample", that echoes its arguments).  After selecting
+a .tek file, you'll get a series of wizards asking you where to
+install the package.
+
+Once you've installed the sample package, fire up another tclsh or
+wish, and execute "package require Sample", which should get the
+sample package to load.
+
+You can try installing multiple packages using bundle/bundle.tek.  The
+package bundle/dp/dp.tek is a fairly complete package (with examples,
+documentation, etc), but only runs on Wish 7.6
+
+To delete a package, select the package in the browser and use
+File->Uninstall.  You can uninstall several packages at one if
+you select them in the browser.
+
+If you're running wish 8.0 or later, you can use Teki to do
+web based installs.  Select WWW->Browse to see the packages.
+This will connect to the teki site, download a Table of Contents
+file, and allows you to install packages across the net.
+
+----------------
+Notes to TEKI developers:
+
+Some notes from the Tcl Extensions Writer's BOF are in teki-notes.txt
+The .tek file format is described in tek-file-format.txt
+Todo.txt is an (incomplete) list of stuff that needs to get done
+teki.tcl is the main teki installer.  It uses "logo.gif"
+Support required in the Tcl core is listed in "tcl support.txt"
+

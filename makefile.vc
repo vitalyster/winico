@@ -1,0 +1,135 @@
+# Makefile.vc for WinIco-extension
+#
+# This makefile builds winicoxx.dll, a small extension to have
+# dynamic loadable icons for a toplevel as a dynamically
+# loadable Tk extension.  This makefile is suitable for use with
+# Microsoft Visual C++ 4.0/5.0.
+#
+# hacked from Jeff Hobb's "tkTable"
+#        and Tom Poindexter's "OraTcl"
+#
+# TkWinIco requires access "tkWin.h" to build on Windows
+# so be sure to have installed it on your machine
+
+
+WINICO_NAME=Winico
+DLL_BASE=winico
+WINICO_VERSION = 0.1
+DLL_VERSION = 01
+PROJECT	= $(DLL_BASE)$(DLL_VERSION)
+PROJECT_DLL=$(PROJECT).dll
+
+#
+# Project directories -- these may need to be customized for your site
+#
+# ROOT --	location of the example files.
+# TMPDIR --	location for .obj files.
+# TOOLS32 --	location of VC++ compiler installation.
+# TCLDEV --	location where Tcl is installed.
+# TCL_VERSION -- dir of the tcl-sources
+# TK_VERSION  -- dir of the tk-sources
+# WISH_VERSION -- version info of the wish binary
+#
+
+ROOT		= .
+TMPDIR		= .
+TOOLS32		= 
+# Set your version of Tcl
+# Set TCLDEV to point to a directory that has Tcl/Tk SOURCES
+TCLDEV= d:\ws
+# Set the right versions
+TCL_VERSION=8.2
+# 
+TK_VERSION=8.2
+#
+WISH_VERSION=82
+
+TCL_DIR=$(TCLDEV)\tcl$(TCL_VERSION)
+TK_DIR=$(TCLDEV)\tk$(TK_VERSION)
+BINDIR=$(TCLDEV)\bin
+TCL_LIB=$(BINDIR)\tcl$(DLL_VERSION).lib
+TK_LIB=$(BINDIR)\tk$(DLL_VERSION).lib
+WISH= $(BINDIR)\wish$(WISH_VERSION)
+# comment the following line to compile with symbols
+NODEBUG=1
+
+#
+# Visual C++ tools
+#
+
+cc32	= cl
+CP      = copy
+RM      = del
+
+INCLUDES = -I$(TCL_DIR)\generic -I$(TK_DIR)\generic -I$(TK_DIR)\win -I$(TK_DIR)\xlib
+DEFINES = -nologo $(DEBUGDEFINES) -DWINICO_NAME=\"$(WINICO_NAME)\" -DWINICO_VERSION=\"$(WINICO_VERSION)\"
+
+#LIBS	= $(TCL_DIR)\win\tcl$(TCL_LIB_V).lib $(TK_DIR)\win\tk$(TK_LIB_V).lib
+LIBS	= $(TCL_DIR)\win32-ix86\Release\tcl82.lib $(TK_DIR)\win32-ix86\Release\tk82.lib
+
+!include <ntwin32.mak>
+
+# 
+# Global makefile settings
+#
+
+DLLOBJS = $(TMPDIR)\tkwinico.obj
+
+# Targets
+
+all: $(PROJECT_DLL)
+
+
+test: pkgIndex.tcl
+	@"$(WISH)" <<
+		console show
+		wm withdraw .
+		lappend auto_path $(ROOT)
+		package require $(WINICO_NAME)
+		if ![catch {winico load hand} msg] {
+		    puts "Test passed."
+		    puts "try another test"
+		    source testico.tcl
+		    after 2000 "wm deiconify .;raise ."
+		    after 5000 "exit 0"
+		} else {
+		    puts "[set msg]:$(PROJECT) failed to load and run"
+		    after 5000 "exit 1"
+		}
+<<
+
+pkgIndex.tcl: $(PROJECT_DLL)
+	"$(WISH)" <<
+		console show
+		wm withdraw .
+		pkg_mkIndex $(ROOT) $(PROJECT_DLL)
+		puts stderr "package index created"
+		after 5000 "exit 0"
+<<
+
+
+#I use guilibsmt to prevent an runtime error if someone has only borland 
+#compiled Tcl
+$(PROJECT_DLL): $(DLLOBJS)
+	$(link) $(linkdebug) $(dlllflags) $(LIBS) \
+		$(guilibsmt) -out:$(PROJECT_DLL) $(DLLOBJS)
+
+# Implicit Targets
+#I use cvarsmt to prevent an runtime error if someone has only borland compiled
+#Tcl
+.c.obj:
+	$(cc32) $(cdebug) $(cflags) $(cvarsmt) $(INCLUDES) \
+		$(DEFINES) -Fo$(TMPDIR)\ $<
+
+distclean:
+	-$(RM) $(TMPDIR)\*.obj
+	-$(RM) $(PROJECT).lib
+	-$(RM) $(PROJECT).exp
+	-$(RM) $(PROJECT).zip
+	-$(RM) pkgIndex.tcl
+dist: all distclean
+	zip $(PROJECT).zip license.terms makefile *.tek *.tcl *.dll *.txt *.c *.ico Readme teki\* teki\tekilib\*
+	
+
+clean:	distclean
+	-$(RM) $(PROJECT_DLL)
