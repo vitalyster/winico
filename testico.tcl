@@ -37,8 +37,8 @@ proc winico_seticon { w icofile } {
     set smallpos $bigpos
     puts stderr "couldn't find $smallsize icons in $icofile"
   }
-  puts stderr "big icon is $bigsize,bpp:$bigdepth,pos:$bigpos"
-  puts stderr "small icon is $smallsize,bpp:$smalldepth,pos:$smallpos"
+  #puts stderr "big icon is $bigsize,bpp:$bigdepth,pos:$bigpos"
+  #puts stderr "small icon is $smallsize,bpp:$smalldepth,pos:$smallpos"
   winico setwindow $w $ico big   $bigpos
   winico setwindow $w $ico small $smallpos
   return $ico
@@ -51,7 +51,14 @@ proc winico_loadicon { w symbol } {
   winico setwindow $w $ico big
   winico setwindow $w $ico small
 }
+proc taskbar_cmd { message ico wparam lparam x y } {
+  puts stderr "taskbar_cmd with $message,ico:$ico,wParam:$wparam,lParam:$lparam,x:$x,y:$y"
+}
 update
 set ico [winico_seticon . smiley.ico]
-after 10000 "winico delete $ico"
+#new new new
+winico text $ico "This is a taskbar sample text"
+winico taskbar add $ico -callback "taskbar_cmd %m %i %w %l %x %y"
+
+after 20000 "winico delete $ico"
 

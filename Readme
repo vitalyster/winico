@@ -1,12 +1,15 @@
-Initial release 16.02.1998
-
+Initial release 0.1 16.02.1998
+        release 0.2 17.06.1998
+        release 0.3 08.12.1998
+          release 0.3 binary contributions 26.09.1999
+	release 0.4 12.10.1999
 
 
 Winico-Extension for Tcl/Tk on Windows 
 --------------------------------------
 
-The Winico extension is a small helper extension for the Tcl/Tk 8.0(p2)
-programming system from Sun Microsystems.
+The Winico extension is a small helper extension-dll for the Tcl/Tk 8.0(p2)
+programming system from Scriptics Corporation.
 With this Tcl/Tk version (and earlier versions) it's not possible to set 
 Icons for Tk-Toplevels via the "wm iconbitmap"-command.
 That's why I played with the IconPro-Sample from the Win32-SDK and
@@ -18,39 +21,25 @@ Tk-Toplevel.
 Under Win95/NT it's possible to set the icons for each toplevel independently,
 under Win32s it's only possible to set 1 Taskbar-icon for all toplevels
 of the application (a solution similar to Win95 would require patching the core)
+New since version 0.2 is the ability to place an icon in the
+win95/winnt4.0 taskbar status area
 
 Winico is available at <http://ftp.bj-ig.de/pub/tcltk/>
 (winicoxx.zip)
 
-Update Sept 22, 1999:
-       contact: Scott Redman, Scriptics Corporation
-       redman@scriptics.com
-
-       Created a new TEA-compliant Makefile system, using configure.in
-       and Makefile.in, plus a few more files.  Modified the source
-       code to use Tcl Stubs.  Tested and works with Tcl/Tk 8.2.0+.
-       Since Tcl/Tk 8.2.0 does not work with Win32s, the new make
-       system will not work on Win32s either.  The new system does not
-       require the use of Teki to install, as is the case with all TEA
-       extensions.
-
-       To reflect my changes, I have changed the version number to 0.2.
-       
-       You can obtain the source code for winico from the Scriptics
-       CVS repository.  I will be sending my changes to Leo Schubert
-       so that he can incorporate my changes as he wishes.
-
 Installation
 --------------------------------------
 "winico" wants to be installed with the "teki"-Extension installer
-from Brian Smith (bsmith@cs.cornell.edu) and Sumit Kapoor (sumit@cs.cornell.edu)from the Cornell University. Sumit is the actually the code maintainer.
+from Brian Smith (bsmith@cs.cornell.edu) and Sumit Kapoor (sumit@cs.cornell.edu)from the Cornell University. Sumit is the current code maintainer.
 Thank you guys for the cool tool !
 
 Installation-steps:
 1. unzip the distribution in a temporary dir
-  c:\tmp>unzip winico01.zip
+  c:\tmp>unzip winico02.zip
            or
-  c:\tmp>pkunzip -d winico01.zip
+  c:\tmp>pkunzip -d winico02.zip
+
+  Note that the files will be expanded directly in the current directory!
 2. you have to patch the tcl-library ,go to the teki subdir, 
  run a wish80 or tclsh80 and type
   c:\tmp>cd teki
@@ -62,18 +51,42 @@ Installation-steps:
   %exit
 3. type
   c:\tmp\teki>wish80 -f teki.tcl
-  now go to "Install" and choose the Winico.tek one dir upstairs,
+  Now go to "Install" and choose the Winico.tek one directory level higher .
   Follow the installation instructions
   (try first to press all Finish-buttons you can find :-)
   If you were successful, Winico appears in the list of installed packages,
   you can leave teki
 4. now you can try the testscript
-  c:\tmp>wish80 -f testico.tcl
+  c:\tmp>wish80 -f test.tcl
   the "."-window should appear with a red smiley in the titlebar(caption)
   and a yellow smiley in the taskbar(when hitting Alt-Tab) for a while.
   Et voila, you are done.
+5. New since version 0.2: in the Taskbar System-Tray you'll see a yellow
+   smiley. 
+   If you place the mouse over it, you'll see some output on the
+   console and a small text-bubble for the icon.
+
+Simple Test
+--------------------
+
+Another simple test is (without installing the dll permanently)
+1. unzip winico03.zip in c:\tmp\winico
+                                                                                
+2. start c:\progra~1\tcl\bin\wish80
+                                                                                
+% cd /tmp/winico
+% load winico03
+% source testico.tcl
+after#1
+                                                                                
+et-voila , shou yould  see something.
+Note that after 20 seconds the icon will be deleted (last line of testico.tcl)
+  after 20000 "winico delete $ico"
+so you will get back the original icon.
+If you delete the last line you'll get it forever.
   
-  
+What is Winico ?
+--------------------------------------  
 
 "winico" manages icon-resources.
 One icon resource can contain one ore more icons, each of them can have
@@ -95,15 +108,26 @@ createfrom <iconfilename>
   To see, how much icons inside the file , use "winico info <icon-identifier>"
   (example: winico info ico#1)
 
-load <iconresourcename>
+load <iconresourcename> ?dllname?
   try's to load the icon from the executable, this is useful if one has a custom
   wish with several icons inside. The advantage is that the LoadIcon()-API
   loads automagically the icon with the right colordepth, this work
-  must be done be the programmer if one uses the "createfrom" subcommand.
+  must be done by the programmer if one uses the "createfrom" subcommand.
   <iconresourcename> can be a string (from the .rc-file) or a number.
   predefined resources (should be ever loaded successfully):
   "application" "asterisk" "exclamation" "hand" "question" 
   return value is also an icon-identifier as in the "createfrom" subcommand.
+NEW NEW NEW for version 0.3 is the optional argument ?dllname?, this
+  allows to load iconresources from a DLL.
+  If the DLL cannot be loaded (LoadLibrary fails), an error is returned.
+  This enables the ability to pack all needed icons for an application
+  into a dummy dll (for this is a Windows Compiler needed) and to "load"
+  them as needed.
+  Again: "load" has the advantage, that it always chooses the right icon from an
+  icon resource. So if you have the ability to compile your Icons into a DLL,
+  this is the preferrable way.
+  On the other hand , if you don't own a compiler , you will be happy about
+  the "createfrom" possibility.
 
 info ?icon-identifier?
   if ?icon-identifier? is omitted, "winico info" returns a list of all 
@@ -159,11 +183,54 @@ setwindow <windowid> <icon-identifier> ?big/small? ?pos?
    If ?pos? is set , the icon with that -pos number is used for setting
    the toplevel icon, otherwise winico chooses the first  32x32 16color icon
    (could be improved a little bit)
+   This option only has an effect on icons, created with the "createfrom"
+   subcommand
 
 delete <icon-identifier>
    frees the icon-resource identified by icon-identifier.
    doesn't raise an error if this resource doesn't exists
    (always return TCL_OK)
+
+NEW NEW NEW for version 0.2
+
+taskbar <add/modify/delete> <icon-identifier> \
+      ?-callback tclcallback? ?-pos <iconposition>? ?-text <tooltiptext>?
+   adds , modifies or deletes an icon to or from  the taskbar status area
+   if you want to add an icon the 1st time to the taskbar status area, use "add"
+   and the current "hicon" is used to be displayed in the
+   taskbar.
+   To modify the text or the icon displayed in the taskbar status area,
+   use "-pos" and "-text" options to change the current settings and then
+   call the "modify" subcommand. (in the most cases "add" is enough I think)
+   "-pos" only has effect on icons created with "createfrom".
+   The remove an icon from the status area, use the "winico taskbar delete <id>"
+   or simply call "winico delete <id>"
+   The optional callback (set with -callback) is for specifying a tcl-callback,
+   if the user moves or clicks with the mouse over the icon in the status area.
+   In the callback there are bind-like abbreviations possible :
+        (tkbind was my friend:-)
+   %m - the windows message specifier (WM_LBUTTONDOWN,WM_MOUSEMOVE a.s.o)
+   %i - the icon identifier           (ico#1, ico#2 a.s.o)
+   %x - current xposition of the cursor 
+   %x - current yposition of the cursor 
+   %X - xposition of the cursor when the last windows-message was processed
+   %Y - yposition of the cursor when the last windows-message was processed
+        (%X,%Y may differ from %x,%y however the difference is marginal )
+   %t - current tickcount of the system
+   %w - wParam of the internal callback message (the integer part of %i)
+   %l - lParam of the internal callback message (integer value of %m)
+   %% - a %-sign
+
+   Example :
+     winico taskbar add ico#1 -pos 1 -text "big tcp server" \
+                              -callback "mytclproc %m %i %X %Y"
+     ...
+     proc mytclproc { msg ico x y } {
+       if { $msg=="WM_RBUTTONDOWN" } {
+         create_context_menu $ico $x $y
+       }
+     }
+   
 
   
 all other subcommands which may be additionally reported by calling "winico"
@@ -177,6 +244,10 @@ very welcome.
 Very important for me is the remaining of the WTK define inside the C-Sources,
 we (Brueckner&Jarosch) use "winico" in our commercial software inside a
 very specialized Tk3.6-port.
+What I would like to have is a Tk-widget, which is able to display the icons
+(to enable icon browsing).
+If one has created a nice icon and want to give it royalty free to others,
+email it to me and I include it in the winico-dll.
 
 Known bugs
 ----------
@@ -185,6 +256,22 @@ After creating an icon-resource with "create" and freeing with "delete"
 there are some bytes left(10-20).
 "winico setwindow <windowhandle>" may crash, if <windowhandle> is not a mapped
 Tk8.0 toplevel or a valid Windows-handle.
+
+Release Notes
+-------------
+0.1 initial release
+
+0.2 adds taskbar support
+
+0.3 incorporates a little patch from Jan Nijtmans to load icons also
+    from a extension dll loaded with "load"
+    for 3.0 there are 2 binary compiles for
+        Tk8.2 in the bin directory
+
+0.4 (Scriptics) merged pseudo 0.2-Scriptics code base with 0.3. Only
+    changes that were required were to rename the 0.3 makefile to 
+    "makefile.vc" and add configure.in and Makefile.in for TEA-compliance.
+
 
 Todo-list
 ---------

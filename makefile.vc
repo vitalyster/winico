@@ -14,9 +14,12 @@
 
 WINICO_NAME=Winico
 DLL_BASE=winico
-WINICO_VERSION = 0.1
-DLL_VERSION = 01
-PROJECT	= $(DLL_BASE)$(DLL_VERSION)
+WINICO_MAJOR   =0
+WINICO_MINOR   =4
+WINICO_VERSION = 0.4
+TCL_DLL_VERSION = 80
+ICO_DLL_VERSION = 04
+PROJECT	= $(DLL_BASE)$(ICO_DLL_VERSION)
 PROJECT_DLL=$(PROJECT).dll
 
 #
@@ -33,23 +36,25 @@ PROJECT_DLL=$(PROJECT).dll
 
 ROOT		= .
 TMPDIR		= .
-TOOLS32		= 
+TOOLS32		= c:\progra~1\devstudio\vc
 # Set your version of Tcl
 # Set TCLDEV to point to a directory that has Tcl/Tk SOURCES
-TCLDEV= d:\ws
+TCLDEV= C:\tcldev
 # Set the right versions
-TCL_VERSION=8.2
+TCL_VERSION=8.0
 # 
-TK_VERSION=8.2
+TK_VERSION=8.0
 #
-WISH_VERSION=82
+WISH_VERSION=80
 
 TCL_DIR=$(TCLDEV)\tcl$(TCL_VERSION)
 TK_DIR=$(TCLDEV)\tk$(TK_VERSION)
 BINDIR=$(TCLDEV)\bin
-TCL_LIB=$(BINDIR)\tcl$(DLL_VERSION).lib
-TK_LIB=$(BINDIR)\tk$(DLL_VERSION).lib
-WISH= $(BINDIR)\wish$(WISH_VERSION)
+TCL_LIB=$(BINDIR)\tcl$(TCL_DLL_VERSION).lib
+TK_LIB=$(BINDIR)\tk$(TCL_DLL_VERSION).lib
+WISH= \progra~1\Tcl\bin\wish$(WISH_VERSION)
+#WISH= \tcldev\bin\wishd80
+#DEBWISH=msdev.exe ..\bin\wish$(WISH_VERSION).exe
 # comment the following line to compile with symbols
 NODEBUG=1
 
@@ -57,15 +62,21 @@ NODEBUG=1
 # Visual C++ tools
 #
 
-cc32	= cl
+PATH=$(TOOLS32)\bin;$(PATH)
+
+cc32	= $(TOOLS32)\bin\cl -I$(TOOLS32)\include
+rc32    = $(TOOLS32)\bin\rc.exe
 CP      = copy
 RM      = del
 
-INCLUDES = -I$(TCL_DIR)\generic -I$(TK_DIR)\generic -I$(TK_DIR)\win -I$(TK_DIR)\xlib
+INCLUDES = -I$(TOOLS32)\include -I$(TCL_DIR)\generic -I$(TK_DIR)\generic -I$(TK_DIR)\win -I$(TK_DIR)\xlib
 DEFINES = -nologo $(DEBUGDEFINES) -DWINICO_NAME=\"$(WINICO_NAME)\" -DWINICO_VERSION=\"$(WINICO_VERSION)\"
+RCDEFINES = -dWINICO_NAME=\"$(WINICO_NAME)\" -dWINICO_VERSION=\"$(WINICO_VERSION)\" -dICO_DLL_VERSION=\"$(ICO_DLL_VERSION)\" 
+
 
 #LIBS	= $(TCL_DIR)\win\tcl$(TCL_LIB_V).lib $(TK_DIR)\win\tk$(TK_LIB_V).lib
-LIBS	= $(TCL_DIR)\win32-ix86\Release\tcl82.lib $(TK_DIR)\win32-ix86\Release\tk82.lib
+#LIBS	= $(TCLDEV)\bin\tcl80.lib $(TCLDEV)\bin\tk80.lib
+LIBS	= $(TCL_LIB) $(TK_LIB)
 
 !include <ntwin32.mak>
 
@@ -84,14 +95,36 @@ test: pkgIndex.tcl
 	@"$(WISH)" <<
 		console show
 		wm withdraw .
-		lappend auto_path $(ROOT)
-		package require $(WINICO_NAME)
+		set autopath [linsert [set auto_path] 0 $(ROOT)]
+		set dir [pwd]
+		source pkgIndex.tcl
+		update
+		package require -exact $(WINICO_NAME) $(WINICO_VERSION)
+		puts "after require"
+		update
 		if ![catch {winico load hand} msg] {
-		    puts "Test passed."
-		    puts "try another test"
+		    puts "1st Exclamation Test passed."
+                    console eval "wm geometry . 50x25+0+0"
+                    wm deiconify .
+                    update
+                    raise .;
+                    wm geometry . +400+0
+                    update
+                    winico setwindow . [set msg]
+                    puts "you should see a exclamation icon in \".\""
+                    update
+                    after 4000
+                    set l [winico load leo $(PROJECT_DLL)]
+                    winico setwindow . [set l]
+                    puts "you should see a leo icon in \".\""
+                    update
+                    after 4000
 		    source testico.tcl
-		    after 2000 "wm deiconify .;raise ."
-		    after 5000 "exit 0"
+                    puts stderr "you should see a red smiley in \".\""
+                    puts "and a yellow smiley in the Task-List"
+                    puts "now go to the taskbar status area"
+                    puts "and move the mouse over the smiley"
+		    after 20000 "exit 0"
 		} else {
 		    puts "[set msg]:$(PROJECT) failed to load and run"
 		    after 5000 "exit 1"
@@ -108,27 +141,33 @@ pkgIndex.tcl: $(PROJECT_DLL)
 <<
 
 
-#I use guilibsmt to prevent an runtime error if someone has only borland 
+#I use guilibsmt to prevent a runtime error if someone has only borland 
 #compiled Tcl
-$(PROJECT_DLL): $(DLLOBJS)
+$(PROJECT_DLL): $(DLLOBJS) tkwinico.res
 	$(link) $(linkdebug) $(dlllflags) $(LIBS) \
-		$(guilibsmt) -out:$(PROJECT_DLL) $(DLLOBJS)
+		$(guilibsmt) tkwinico.res -out:$(PROJECT_DLL) $(DLLOBJS)
 
 # Implicit Targets
-#I use cvarsmt to prevent an runtime error if someone has only borland compiled
+#I use cvarsmt to prevent a runtime error if someone has only borland compiled
 #Tcl
 .c.obj:
 	$(cc32) $(cdebug) $(cflags) $(cvarsmt) $(INCLUDES) \
 		$(DEFINES) -Fo$(TMPDIR)\ $<
 
+.rc.res:
+	$(rc32) -fo $@ -r $(RCDEFINES) $<
+
 distclean:
 	-$(RM) $(TMPDIR)\*.obj
+	-$(RM) $(TMPDIR)\*.res
 	-$(RM) $(PROJECT).lib
 	-$(RM) $(PROJECT).exp
 	-$(RM) $(PROJECT).zip
 	-$(RM) pkgIndex.tcl
 dist: all distclean
-	zip $(PROJECT).zip license.terms makefile *.tek *.tcl *.dll *.txt *.c *.ico Readme teki\* teki\tekilib\*
+	zip $(PROJECT).zip license.terms makefile *.tek *.tcl *.dll *.txt *.rc *.c *.ico Readme 
+        tclsh80 zipadd.tcl $(PROJECT).zip teki
+        tclsh80 zipadd.tcl $(PROJECT).zip bin
 	
 
 clean:	distclean

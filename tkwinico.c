@@ -34,23 +34,20 @@
   if someone uses WTK, "winico" is static compiled into WTK,
   so don't remove WTK
 */
-#ifdef WTK
-/* headers for WTK*/
 #include <windows.h>
-#include <tcl.h>
+#include <shellapi.h>
+#ifdef WTK
+#include "../tk/tkConfig.h"
+#include "../tk/tkInt.h"
 #include <wtk.h>
-#pragma hdrstop
 #include <stdlib.h>
 #include <string.h>
 #include "wtkint.h"
 #include "testwver.h"
 #define GETHINSTANCE GetHinstance()
 #define ISWIN32S  Wtk_test_win32s()
-
 #else
-/*headers for Tk8.xx*/
-#include <tkWin.h>
-#include <stdlib.h>
+#include <tkWinInt.h>
 #define GETHINSTANCE Tk_GetHINSTANCE()
 static int isWin32s=-1;
 #define ISWIN32S  isWin32s
@@ -66,7 +63,7 @@ static int isWin32s=-1;
 #       endif
 #   endif
 
-#endif /*WTK*/
+#endif
 
 
 //#define ICO_DEBUG
@@ -85,7 +82,7 @@ typedef struct {
 	BOOL		bHasChanged;                     // Has image changed?
 	TCHAR		szOriginalICOFileName[MAX_PATH]; // Original name
 	TCHAR		szOriginalDLLFileName[MAX_PATH]; // Original name
-	UINT		nNumImages;                      // How many images?
+	int		nNumImages;                      // How many images?
 	ICONIMAGE	IconImages[1];                   // Image entries
 } ICONRESOURCE, *LPICONRESOURCE;
 
@@ -123,11 +120,11 @@ static WORD PaletteSize (LPSTR lpbi);
 static DWORD BytesPerLine( LPBITMAPINFOHEADER lpBMIH );
 
 
-static HWND        	hWndMain=NULL;
+//static HWND        	hWndMain=NULL;
 
 /****************************************************************************/
 // Prototypes for local functions
-static UINT ReadICOHeader( HANDLE hFile );
+static int ReadICOHeader( HANDLE hFile );
 static BOOL AdjustIconImagePointers( LPICONIMAGE lpImage );
 /****************************************************************************/
 
@@ -345,7 +342,7 @@ static HICON MakeIconFromResource( LPICONIMAGE lpIcon ){
 
 
 static void FreeIconResource(LPICONRESOURCE lpIR){
-  UINT i;
+  int i;
   if( lpIR == NULL )
      return;
   // Free all the bits
@@ -381,7 +378,7 @@ static char* myrealloc(char* p,size_t n){
 LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
     LPICONRESOURCE    	lpIR , lpNew ;
     HANDLE            	hFile;
-    UINT                i;
+    int                 i;
     DWORD            	dwBytesRead;
     LPICONDIRENTRY    	lpIDE;
 
@@ -398,7 +395,7 @@ LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
         return NULL;
     }
     // Read in the header
-    if( (lpIR->nNumImages = ReadICOHeader( hFile )) == (UINT)-1 )    {
+    if( (lpIR->nNumImages = ReadICOHeader( hFile )) == -1 )    {
         Tcl_AppendResult(interp,"Error Reading File Header",(char*)NULL);
         CloseHandle( hFile );
         ckfree((char*) lpIR );
@@ -553,37 +550,37 @@ BOOL AdjustIconImagePointers( LPICONIMAGE lpImage )
 *                July '95 - Created
 *
 \****************************************************************************/
-static UINT ReadICOHeader( HANDLE hFile )
+static int ReadICOHeader( HANDLE hFile )
 {
     WORD    Input;
     DWORD	dwBytesRead;
 
     // Read the 'reserved' WORD
     if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
-        return (UINT)-1;
+        return -1;
     // Did we get a WORD?
     if( dwBytesRead != sizeof( WORD ) )
-        return (UINT)-1;
+        return -1;
     // Was it 'reserved' ?   (ie 0)
     if( Input != 0 )
-        return (UINT)-1;
+        return -1;
     // Read the type WORD
     if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
-        return (UINT)-1;
+        return -1;
     // Did we get a WORD?
     if( dwBytesRead != sizeof( WORD ) )
-        return (UINT)-1;
+        return -1;
     // Was it type 1?
     if( Input != 1 )
-        return (UINT)-1;
+        return -1;
     // Get the count of images
     if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
-        return (UINT)-1;
+        return -1;
     // Did we get a WORD?
     if( dwBytesRead != sizeof( WORD ) )
-        return (UINT)-1;
+        return -1;
     // Return the count
-    return Input;
+    return (int)Input;
 }
 /* End ReadICOHeader() ****************************************************/
 
@@ -824,6 +821,10 @@ typedef struct IcoInfo {
 				 * cancel it. */
     LPICONRESOURCE lpIR;        /*IconresourcePtr if type==ICO_FILE */
     int iconpos;                /*hIcon is the nth Icon*/
+    char* taskbar_txt;          /*malloced text to display in the taskbar*/
+    Tcl_Interp* interp;         /*interp which created the icon*/
+    char* taskbar_command;      /*command to eval if events in the taskbar arrive*/
+    int taskbar_flags;        /*taskbar related flags*/
     struct IcoInfo *nextPtr;
 } IcoInfo;
 
@@ -831,9 +832,76 @@ static IcoInfo* firstIcoPtr=NULL;
 #define ICO_LOAD   1
 #define ICO_FILE   2
 
+#define TASKBAR_ICON 1
+#define ICON_MESSAGE WM_USER+1234
+
+#ifdef __TURBOC__
+#define NIM_ADD         0x00000000
+#define NIM_MODIFY      0x00000001
+#define NIM_DELETE      0x00000002
+
+#define NIF_MESSAGE     0x00000001
+#define NIF_ICON        0x00000002
+#define NIF_TIP         0x00000004
+typedef struct _NOTIFYICONDATA { // nid
+    DWORD cbSize;
+    HWND hWnd;
+    UINT uID;
+    UINT uFlags;
+    UINT uCallbackMessage;
+    HICON hIcon;
+    char szTip[64];
+} NOTIFYICONDATA, *PNOTIFYICONDATA;
+#endif
+#ifdef _MSC_VER
+#include <shellapi.h>
+#endif
+static HWND CreateTaskbarHandlerWindow(void) ;
+static int TaskbarOperation (Tcl_Interp* interp,IcoInfo* icoPtr,int oper,HICON hIcon,char* txt) {
+  static FARPROC notify_func=NULL;
+  static HMODULE hmod=NULL ;
+  int result;
+  NOTIFYICONDATA ni;
+  if(notify_func==NULL && hmod==NULL) {
+    hmod=GetModuleHandle("SHELL32.DLL");
+    if(hmod==NULL)
+      hmod=LoadLibrary("SHELL32.DLL");
+    if(hmod==NULL){
+      Tcl_AppendResult(interp,"Could not Load SHELL32.DLL",(char*)0);
+      return TCL_ERROR;
+    }
+    if((notify_func=GetProcAddress(hmod,"Shell_NotifyIconA"))==NULL){
+      Tcl_AppendResult(interp, "Could not get address of Shell_NotifyIconA",(char*)0);
+      return TCL_ERROR;
+    }
+  } else if (notify_func==NULL) {
+    Tcl_AppendResult(interp,"You probably don't have a Win95 shell",(char*)NULL);
+    return TCL_ERROR;
+  }
+  ni.cbSize=sizeof(NOTIFYICONDATA);
+  ni.hWnd=CreateTaskbarHandlerWindow();
+  ni.uID=icoPtr->id;
+  ni.uFlags=NIF_ICON | NIF_TIP | NIF_MESSAGE;
+  ni.uCallbackMessage=ICON_MESSAGE;
+  ni.hIcon=(HICON)hIcon;
+  strncpy(ni.szTip,txt,63);
+  result=notify_func(oper,&ni);
+  sprintf(interp->result,"%d",result);
+  if(result==1) {
+    if  (oper==NIM_ADD || oper==NIM_MODIFY) {
+      icoPtr->taskbar_flags|=TASKBAR_ICON;
+    }
+    if(oper==NIM_DELETE) {
+      icoPtr->taskbar_flags&=~TASKBAR_ICON;
+    }
+  }
+  return TCL_OK;
+}
+
 static IcoInfo* NewIcon (Tcl_Interp* interp,
                   HICON hIcon,int itype,LPICONRESOURCE lpIR,int iconpos) {
   static int nextId = 1;
+  char buffer[50];
   IcoInfo* icoPtr;
   icoPtr = (IcoInfo *) ckalloc((unsigned) (sizeof(IcoInfo)));
   memset(icoPtr,0,sizeof(IcoInfo));
@@ -842,6 +910,12 @@ static IcoInfo* NewIcon (Tcl_Interp* interp,
   icoPtr->itype   =itype;
   icoPtr->lpIR    =lpIR;
   icoPtr->iconpos =iconpos;
+  sprintf(buffer,"ico#%d",icoPtr->id);
+  icoPtr->taskbar_txt=ckalloc(strlen(buffer)+1);
+  strcpy(icoPtr->taskbar_txt,buffer);
+  icoPtr->interp  =interp;
+  icoPtr->taskbar_command=NULL;
+  icoPtr->taskbar_flags=0;
   if(itype==ICO_LOAD) {
     icoPtr->lpIR=(LPICONRESOURCE)NULL;
     icoPtr->iconpos = 0;
@@ -852,7 +926,7 @@ static IcoInfo* NewIcon (Tcl_Interp* interp,
   sprintf(interp->result, "ico#%d", icoPtr->id);
   return icoPtr;
 }
-static void FreeIcoPtr(IcoInfo* icoPtr)
+static void FreeIcoPtr(Tcl_Interp* interp,IcoInfo* icoPtr)
 {
     IcoInfo *prevPtr;
     if (firstIcoPtr == icoPtr) {
@@ -864,8 +938,18 @@ static void FreeIcoPtr(IcoInfo* icoPtr)
 	}
 	prevPtr->nextPtr = icoPtr->nextPtr;
     }
+    if (icoPtr->taskbar_flags & TASKBAR_ICON) {
+       TaskbarOperation(interp,icoPtr,NIM_DELETE,NULL,"");
+       Tcl_ResetResult(interp);
+    }
     if(icoPtr->itype==ICO_FILE){
       FreeIconResource(icoPtr->lpIR);
+    }
+    if(icoPtr->taskbar_txt!=NULL) {
+      ckfree((char *) icoPtr->taskbar_txt);
+    }
+    if(icoPtr->taskbar_command!=NULL) {
+      ckfree((char *) icoPtr->taskbar_command);
     }
     ckfree((char *) icoPtr);
 }
@@ -892,6 +976,224 @@ static IcoInfo* GetIcoPtr(Tcl_Interp* interp,char* string){
 	 "\" doesn't exist", (char *) NULL);
     return NULL;
 }
+
+static int GetInt(long theint,char* buffer){
+  sprintf(buffer,"0x%x",theint);
+  return strlen(buffer);
+}
+static int GetIntDec(long theint,char* buffer){
+  sprintf(buffer,"%d",theint);
+  return strlen(buffer);
+}
+static char* TaskbarExpandPercents(IcoInfo* icoPtr,char* msgstring,
+                                WPARAM wParam,LPARAM lParam,
+                                char* before,char* after,int* aftersize)
+{
+#define SPACELEFT (*aftersize-(dst-after)-1)
+#define AFTERLEN ((*aftersize>0)?(*aftersize*2):1024)
+#define ALLOCLEN ((len>AFTERLEN)?(len*2):AFTERLEN)
+char buffer[20];
+char* dst;
+  dst = after;
+  while (*before) {
+    char *ptr=before;
+    int len=1;
+    if(*before=='%') {
+      switch(before[1]){
+        case 'M':
+        case 'm': {
+          before++;
+          len=strlen(msgstring);
+          ptr=msgstring;
+          break;
+        }
+        /* case 'W': {
+          before++;
+          len=strlen(winstring);
+          ptr=winstring;
+          break;
+        }
+        */
+        case 'i': {
+          before++;
+          sprintf(buffer, "ico#%d", icoPtr->id);
+          len=strlen(buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'w': {
+          before++;
+          len=GetInt((long)wParam,buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'l': {
+          before++;
+          len=GetInt((long)lParam,buffer);
+          ptr=buffer;
+          break;
+        }
+        case 't': {
+          before++;
+          len=GetInt((long)GetTickCount(),buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'x': {
+          POINT pt;
+          GetCursorPos(&pt);
+          before++;
+          len=GetIntDec((long)pt.x,buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'y': {
+          POINT pt;
+          GetCursorPos(&pt);
+          before++;
+          len=GetIntDec((long)pt.y,buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'X': {
+          DWORD dw;
+          dw=GetMessagePos();
+          before++;
+          len=GetIntDec((long)LOWORD(dw),buffer);
+          ptr=buffer;
+          break;
+        }
+        case 'Y': {
+          DWORD dw;
+          dw=GetMessagePos();
+          before++;
+          len=GetIntDec((long)HIWORD(dw),buffer);
+          ptr=buffer;
+          break;
+        }
+        case '%': {
+          before++;
+          len=1;
+          ptr="%";
+          break;
+        }
+      }
+    }
+    if(SPACELEFT<len) {
+      char *newspace;
+      int dist=dst-after;
+      int alloclen=ALLOCLEN;
+      newspace = (char *) ckalloc(alloclen);
+      if(dist>0)
+        memcpy((VOID *) newspace, (VOID *) after, dist);
+      if(after && *aftersize)
+        ckfree(after);
+      *aftersize =alloclen;
+      after = newspace;
+      dst=after+dist;
+    }
+    if(len>0)
+      memcpy(dst,ptr,len);
+    dst+=len;
+    if((dst-after)>(*aftersize-1))
+      panic("oops\n");
+    before++;
+  }
+  *dst=0;
+  return after;
+}
+static void TaskbarEval(IcoInfo* icoPtr,WPARAM wParam,LPARAM lParam) {
+  char* msgstring="none";
+  char evalspace[200];
+  int evalsize=200;
+  char* expanded;
+  switch (lParam) {
+    case WM_MOUSEMOVE    :msgstring="WM_MOUSEMOVE";    break;
+    case WM_LBUTTONDOWN  :msgstring="WM_LBUTTONDOWN";  break;
+    case WM_LBUTTONUP    :msgstring="WM_LBUTTONUP";    break;
+    case WM_LBUTTONDBLCLK:msgstring="WM_LBUTTONDBLCLK";break;
+    case WM_RBUTTONDOWN  :msgstring="WM_RBUTTONDOWN";  break;
+    case WM_RBUTTONUP    :msgstring="WM_RBUTTONUP";    break;
+    case WM_RBUTTONDBLCLK:msgstring="WM_RBUTTONDBLCLK";break;
+    case WM_MBUTTONDOWN  :msgstring="WM_MBUTTONDOWN";  break;
+    case WM_MBUTTONUP    :msgstring="WM_MBUTTONUP";    break;
+    case WM_MBUTTONDBLCLK:msgstring="WM_MBUTTONDBLCLK";break;
+  }
+  expanded = TaskbarExpandPercents(icoPtr,msgstring,wParam,lParam,
+                             icoPtr->taskbar_command,evalspace, &evalsize);
+  if (icoPtr->interp!=NULL) {
+    int result=Tcl_GlobalEval(icoPtr->interp,expanded);
+    if(result!=TCL_OK){
+       char buffer[100];
+       sprintf(buffer, "\n  (command bound to taskbar-icon ico#%d)",icoPtr->id);
+       Tcl_AddErrorInfo(icoPtr->interp, buffer);
+       Tcl_BackgroundError(icoPtr->interp);
+    }
+  }
+  if(expanded!=evalspace){
+    ckfree(expanded);
+  }
+}
+
+/*
+  Windows callback procedure, if ICON_MESSAGE arrives, try to execute
+  the taskbar_command
+*/
+static LRESULT CALLBACK TaskbarHandlerProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+  switch(message) {
+    case ICON_MESSAGE: {
+      IcoInfo* icoPtr;
+      //dprintf("ICON_MESSAGE 0x%x,wParam 0x%x lParam 0x%x\n",message,wParam,lParam);
+      for (icoPtr = firstIcoPtr; icoPtr != NULL;
+        icoPtr = icoPtr->nextPtr) {
+        if (wParam==(WPARAM)icoPtr->id) {
+          if(icoPtr->taskbar_command!=NULL) {
+            TaskbarEval(icoPtr,wParam,lParam);
+          }
+        }
+      }
+      return 0;
+    }
+  }
+  return DefWindowProc(hwnd, message, wParam, lParam);
+}
+/*registers the handler window class*/
+#define HANDLER_CLASS "Wtk_TaskbarHandler"
+static int RegisterHandlerClass(HINSTANCE hInstance)
+{
+   WNDCLASS wndclass;
+   memset(&wndclass,0,sizeof(WNDCLASS));
+   wndclass.style = 0;
+   wndclass.lpfnWndProc = TaskbarHandlerProc;
+   wndclass.cbClsExtra = 0;
+   wndclass.cbWndExtra = 0;
+   wndclass.hInstance = hInstance;
+   wndclass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+   wndclass.hCursor = LoadCursor(NULL, IDC_ARROW);
+   wndclass.hbrBackground = (HBRUSH) GetStockObject(WHITE_BRUSH);
+   wndclass.lpszMenuName = NULL;
+   wndclass.lpszClassName = HANDLER_CLASS;
+   return RegisterClass(&wndclass);
+}
+static HWND handlerWindow=(HWND)0;
+/*creates a hidden window to handle taskbar messages*/
+static HWND CreateTaskbarHandlerWindow(void) {
+  static int registered=0;
+  HINSTANCE hInstance=GETHINSTANCE;
+  if(handlerWindow)
+    return handlerWindow;
+  if(!registered){
+    if(!RegisterHandlerClass(hInstance))return 0;
+    registered=1;
+  }
+  return (handlerWindow=CreateWindow(HANDLER_CLASS,"",WS_OVERLAPPED,0,0,
+    CW_USEDEFAULT,CW_USEDEFAULT,NULL, NULL, hInstance, NULL));
+}
+static void DestroyHandlerWindow(void) {
+  if(handlerWindow)
+    DestroyWindow(handlerWindow);
+}
+
 static char* StandardIcon(char* arg){
   if(!stricmp(arg,"application"))
     return IDI_APPLICATION;
@@ -903,8 +1205,11 @@ static char* StandardIcon(char* arg){
     return IDI_HAND;
   if(!stricmp(arg,"question"))
     return IDI_QUESTION;
+  if(!stricmp(arg,"winlogo"))
+    return IDI_WINLOGO;
   return NULL;
 }
+/*tries to get a valid window handle from a Tk-pathname for a toplevel*/
 static int NameOrHandle(Tcl_Interp* interp,char* arg,HWND* hwndPtr){
 #ifdef WTK
 #define WINFO_FRAME "winfo id "
@@ -946,6 +1251,20 @@ static int NameOrHandle(Tcl_Interp* interp,char* arg,HWND* hwndPtr){
   }
   return TCL_OK;
 }
+
+
+static void WinIcoDestroy (ClientData clientData) {
+  IcoInfo* icoPtr;
+  IcoInfo* nextPtr;
+  Tcl_Interp* interp=(Tcl_Interp*)clientData;
+  DestroyHandlerWindow();
+  for (icoPtr = firstIcoPtr; icoPtr != NULL;
+      icoPtr = nextPtr) {
+    nextPtr=icoPtr->nextPtr;
+    FreeIcoPtr(interp,icoPtr);
+  }
+}
+
 static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** argv){
     size_t length;
     HICON hIcon;
@@ -963,8 +1282,15 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
       HINSTANCE hinst=GETHINSTANCE;
       if(argc<3) {
         Tcl_AppendResult(interp,"wrong # args,must be:",
-                     argv[0]," load <resourcename/number> ",(char*)NULL);
+                     argv[0]," load <resourcename/number> ?dllname?",(char*)NULL);
         return TCL_ERROR;
+      }
+      if (argc > 3) {
+    	hinst = LoadLibrary(argv[3]);
+        if(hinst==NULL) {
+          Tcl_AppendResult(interp,"couldn't load dll ",argv[3],(char*)NULL);
+          return TCL_ERROR;
+        }
       }
       if(Tcl_GetInt(interp,argv[2],&number)==TCL_OK){
         if(number>32511){
@@ -977,15 +1303,17 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
       }
       Tcl_ResetResult(interp);
       arg=StandardIcon(argv[2]);
-      if(arg==NULL)
+      if(arg==NULL) {
         arg=argv[2];
-      else
+      } else {
         hinst=NULL;
+      }
       if((hIcon=LoadIcon(hinst,arg))!=NULL){
         NewIcon(interp,hIcon,ICO_LOAD,NULL,0);
         return TCL_OK;
       }
-      Tcl_AppendResult(interp,"Could not find a resource for ",arg,(char*)NULL);
+      Tcl_AppendResult(interp,"Could not find a resource for \"",
+                                        argv[2],"\"",(char*)NULL);
       return TCL_ERROR;
     } else if ((strncmp(argv[1], "createfrom", length) == 0) && (length >= 2)) {
        LPICONRESOURCE lpIR;
@@ -997,7 +1325,7 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
        }
        lpIR=ReadIconFromICOFile(interp,argv[2]);
        if(lpIR==NULL){
-         Tcl_AppendResult(interp,",read of ",argv[2]," failed!",(char*)NULL);
+         Tcl_AppendResult(interp,"reading of ",argv[2]," failed!",(char*)NULL);
          return TCL_ERROR;
        }
        hIcon=NULL;
@@ -1083,7 +1411,7 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
             Tcl_ResetResult(interp);
 	    return TCL_OK;
 	 }
-         FreeIcoPtr(icoPtr);
+         FreeIcoPtr(interp,icoPtr);
          return TCL_OK;
       } else if ((strncmp(argv[1], "hicon", length) == 0)
 	     && (length >= 2)) {
@@ -1117,7 +1445,24 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
            icoPtr->hIcon=icoPtr->lpIR->IconImages[newpos].hIcon;
          }
          return TCL_OK;
-    } else if ((strncmp(argv[1], "setwindow", length) == 0)  && (length >= 2)) {
+      } else if ((strncmp(argv[1], "text", length) == 0) && (length >= 2)) {
+         if (argc < 3) {
+	    Tcl_AppendResult(interp, "wrong # args: should be \"",
+		    argv[0], " text <id> ?newtext?\"", (char *) NULL);
+	    return TCL_ERROR;
+	 }
+         if(( icoPtr = GetIcoPtr(interp, argv[2])) == NULL ) return TCL_ERROR;
+         if(argc>3){
+           char* newtxt=argv[3];
+           if(icoPtr->taskbar_txt!=NULL){
+             ckfree(icoPtr->taskbar_txt);
+           }
+           icoPtr->taskbar_txt=ckalloc(strlen(newtxt)+1);
+           strcpy(icoPtr->taskbar_txt,newtxt);
+         }
+         Tcl_AppendResult(interp,icoPtr->taskbar_txt,(char*)NULL);
+         return TCL_OK;
+      } else if ((strncmp(argv[1], "setwindow", length) == 0)  && (length >= 2)) {
 #ifdef __TURBOC__
 #define WM_SETICON 0x80
 #define WM_GETICON 0x79
@@ -1170,9 +1515,94 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
       }
       sprintf(interp->result,"%d",result);
       return TCL_OK;
+      } else if ((strncmp(argv[1], "taskbar", length) == 0)  && (length >= 2)) {
+        //TkWindow * tkwin=NULL;
+        char* callback=NULL;
+        //char* windowname=NULL;
+        int oper;
+        char ** args;
+        int c;
+        int length;
+        int count;
+        int newpos;
+        char* txt;
+        if (argc < 4) {
+	   Tcl_AppendResult(interp, "wrong # args: should be \"",
+	    argv[0], " taskbar <add/delete/modify> <id> ?-callback <callback>? \"", (char *) NULL);
+	    return TCL_ERROR;
+	}
+        if (strcmp(argv[2],"add")==0) {
+          oper=NIM_ADD;
+        } else if(strncmp(argv[2],"del",3)==0 ) {
+          oper=NIM_DELETE;
+        } else if(strncmp(argv[2],"mod",3)==0 ) {
+          oper=NIM_MODIFY;
+        } else {
+          Tcl_AppendResult(interp,"bad argument ",argv[2], "should be add,delete or modify",(char*)NULL);
+          return TCL_ERROR;
+        }
+        if(( icoPtr = GetIcoPtr(interp, argv[3])) == NULL ) return TCL_ERROR;
+        hIcon=icoPtr->hIcon;
+        txt=icoPtr->taskbar_txt;
+        if(argc>4) {
+        for (count = argc-4, args = argv+4; count > 1; count -= 2, args += 2) {
+          if (args[0][0] != '-')
+            goto wrongargs2;
+          c = args[0][1];
+          length = strlen(args[0]);
+          if ((c == '-') && (length == 2)) {
+            break;
+          }
+          if ((c == 'c') && (strncmp(args[0], "-callback", length) == 0)) {
+            callback=args[1];
+          } else if ((c == 'p') && (strncmp(args[0], "-pos", length) == 0)) {
+            if(Tcl_GetInt(interp,args[1],&newpos)==TCL_ERROR) {
+              return TCL_ERROR;
+            }
+            if(icoPtr->itype==ICO_FILE) {
+              if(newpos<0 ||  newpos >= icoPtr->lpIR->nNumImages ) {
+                Tcl_AppendResult(interp,"wrong position ",args[1],(char*)NULL);
+                return TCL_ERROR;
+              }
+              hIcon=icoPtr->lpIR->IconImages[newpos].hIcon;
+            }
+          } else if ((c == 't') && (strncmp(args[0], "-text", length) == 0)) {
+            txt=args[1];
+          /* 
+          } else if ((c == 't') && (strncmp(args[0], "-tkwin", length) == 0)) {
+            if((tkwin =(TkWindow*) Tk_NameToWindow(interp, 
+               args[1], Tk_MainWindow(interp)))==NULL) {
+	    return TCL_ERROR;
+            }
+           */
+          } else {
+            goto wrongargs2;
+          }
+        }
+        if(count==1)
+          goto wrongargs2;
+        }
+        if(callback!=NULL ) {
+          /*
+          if (tkwin==NULL) {
+            Tcl_AppendResult(interp,"you can't set a callback without a tkwin");
+            return TCL_ERROR;
+          }
+          */
+          if (icoPtr->taskbar_command!=NULL) {
+            ckfree((char*)icoPtr->taskbar_command);
+          }
+          icoPtr->taskbar_command=ckalloc(strlen(callback)+1);
+          strcpy(icoPtr->taskbar_command,callback);
+        }
+        return TaskbarOperation(interp,icoPtr,oper,hIcon,txt);
+wrongargs2:
+        Tcl_AppendResult(interp, "unknown option \"", args[0],"\",valid are:",
+        "-callback <tcl-callback> -pos <iconposition> -text <tooltiptext>", (char *) NULL);
+        return TCL_ERROR;
     } else {
 	Tcl_AppendResult(interp, "bad argument \"", argv[1],
-		"\": must be load, createfrom, info, setwindow, hicon, pos",
+		"\": must be load, createfromfile, info, hicon, pos, setwindow, text, taskbar",
 		(char *) NULL);
 	return TCL_ERROR;
     }
@@ -1180,32 +1610,28 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 }
 #ifdef WTK
 int TkWinIco_Init(Tcl_Interp* interp){
-   Tcl_CreateCommand(interp, "winico",WinIcoCmd,(ClientData) 0,0);
+   Tcl_CreateCommand(interp, "winico",WinIcoCmd,(ClientData)interp,WinIcoDestroy);
    return TCL_OK;
 }
 #else
-static int DoInit (Tcl_Interp* interp){
+static int DoInit (Tcl_Interp* interp) {
   OSVERSIONINFO info;
-
 #ifdef USE_TCL_STUBS
-  if (Tcl_InitStubs (interp, TCL_VERSION, 0) == NULL) {
-    return TCL_ERROR;
-  }
+  if (Tcl_InitStubs (interp, "8.0", 0) == NULL) 
 #else
-  if (Tcl_PkgRequire (interp, "Tcl", TCL_VERSION, 0) == NULL) {
+  if (Tcl_PkgRequire (interp, "Tcl", "8.0", 0) == NULL) 
+#endif
+  {
     return TCL_ERROR;
   }
-#endif
 #ifdef USE_TK_STUBS
-  if (Tk_InitStubs (interp, TK_VERSION, 0) == NULL) {
-    return TCL_ERROR;
-  }
+  if (Tk_InitStubs (interp, "8.0", 0) == NULL) 
 #else
-  if (Tcl_PkgRequire (interp, "Tk", TK_VERSION, 0) == NULL) {
+  if (Tcl_PkgRequire (interp, "Tk", "8.0", 0) == NULL) 
+#endif
+  {
     return TCL_ERROR;
   }
-#endif
-  
   if (Tcl_PkgProvide (interp, WINICO_NAME , WINICO_VERSION) != TCL_OK) {
     return TCL_ERROR;
   }
@@ -1213,8 +1639,8 @@ static int DoInit (Tcl_Interp* interp){
   GetVersionEx(&info);
   isWin32s = (info.dwPlatformId == VER_PLATFORM_WIN32s);
   Tcl_CreateCommand (interp, "winico", WinIcoCmd,
-		     (ClientData) Tk_MainWindow(interp),
-		     (Tcl_CmdDeleteProc *) NULL);
+		     (ClientData)interp,
+		     (Tcl_CmdDeleteProc *) WinIcoDestroy);
   return TCL_OK;
 }
 EXPORT(int,Winico_Init)(Tcl_Interp* interp) {
