@@ -1,3 +1,32 @@
+2001-05-28  David Gravereaux <davygrvy@pobox.com>
+
+	* license.terms:
+	* makefile.vc:
+	* Readme:
+	* test.tcl:
+	* testico.tcl:
+	* tkwinico.c:
+	* tkwinico.rc:
+	* winico.tcl:
+	* Winico.tek:
+	* zipadd.tcl:
+	* teki/changes.txt:
+	* teki/patch-core.tcl:
+	* teki/Readme:
+	* teki/rtekfile.tcl:
+	* teki/tcl-support.txt:
+	* teki/teki-notes.txt:
+	* teki/teki.tcl:
+	* teki/todo.txt:
+	* teki/tekilib/debug.tcl:
+	* teki/tekilib/http.tcl:
+	* teki/tekilib/pkgIndex.tcl:
+	* teki/tekilib/progress-tcl.tcl:
+	* teki/tekilib/progress-tk.tcl:
+	* teki/tekilib/undo.tcl:
+	* teki/tekilib/wise.tcl:
+		Fixed incorrect <EOL> sequence in repository.
+
 2000-07-22  Brent Welch <welch@ajubasolutions.com>
 
     * Makefile.in - bug fix for static builds and install-libraries
