@@ -73,3 +73,4 @@ proc Progress_StepEnd {} {
     catch {unset ProgressInfo(progressItemCount)}
     update
 }
+

@@ -16,3 +16,4 @@ Work on the directory selection mechanism (i.e., in the wizard, when
        2. Can't doesn't check if directory doesn't exist (causes
           error later in TekiInstall)
 Only list install-archs for valid archs (e.g., install just example)
+

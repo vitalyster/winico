@@ -285,3 +285,4 @@ proc Wise_GetDirName {default} {
     unset WiseInfo
     return $rv
 }
+

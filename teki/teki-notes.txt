@@ -69,3 +69,4 @@ Should modify registry (what?)
 
 Very low priority:
     Allow extension writer to add icon
+

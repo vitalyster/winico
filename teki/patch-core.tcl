@@ -74,3 +74,4 @@ close $f
 puts stderr "Running auto_mkindex [info library]"
 auto_mkindex [info library]
 puts stderr done
+

@@ -24,3 +24,4 @@ proc Progress_StepEnd {} {
     global ProgressInfo
     catch {unset ProgressInfo(steps)}
 }
+

@@ -65,3 +65,4 @@ proc Undo_Clear {{tag all}} {
     global UndoInfo
     unset UndoInfo($tag,UndoStack)
 }
+

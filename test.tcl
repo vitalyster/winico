@@ -33,3 +33,4 @@ if ![catch {winico load exclamation} msg] {
   puts "[set msg]:Winico failed to load and run"
   after 5000 "exit 1"
 }
+
