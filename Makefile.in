@@ -170,7 +170,8 @@ EXTRA_CFLAGS = $(TCL_DEFS) $(PROTO_FLAGS) $(SECURITY_FLAGS) $(MEM_DEBUG_FLAGS) $
 DEFS = @DEFS@ $(EXTRA_CFLAGS)
 
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIGDIR = @CONFIGDIR@
+mkinstalldirs = $(SHELL) $(CONFIGDIR)/mkinstalldirs
 CONFIG_CLEAN_FILES = mkIndex.tcl
 
 CPPFLAGS = @CPPFLAGS@
