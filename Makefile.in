@@ -133,6 +133,7 @@ MAKE_SHARED_LIB = @MAKE_SHARED_LIB@
 MAKE_STATIC_LIB = @MAKE_STATIC_LIB@
 OBJEXT = @OBJEXT@
 RANLIB = @RANLIB@
+SHARED_BUILD = @SHARED_BUILD@
 SHLIB_CFLAGS = @SHLIB_CFLAGS@
 SHLIB_LD = @SHLIB_LD@
 SHLIB_LDFLAGS = @SHLIB_LDFLAGS@
@@ -170,7 +171,8 @@ EXTRA_CFLAGS = $(TCL_DEFS) $(PROTO_FLAGS) $(SECURITY_FLAGS) $(MEM_DEBUG_FLAGS) $
 DEFS = @DEFS@ $(EXTRA_CFLAGS)
 
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIGDIR = @CONFIGDIR@
+mkinstalldirs = $(SHELL) $(CONFIGDIR)/mkinstalldirs
 CONFIG_CLEAN_FILES = mkIndex.tcl
 
 CPPFLAGS = @CPPFLAGS@
@@ -213,7 +215,9 @@ install: all install-binaries install-libraries install-doc
 install-binaries: binaries install-lib-binaries install-bin-binaries
 	$(INSTALL_DATA) $(srcdir)/license.terms $(pkglibdir)
 	$(INSTALL_DATA) $(srcdir)/Readme $(pkglibdir)
-	$(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE)
+	if test "x${SHARED_BUILD}" = "x1" ; then \
+	    $(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE) ; \
+	fi
 
 #========================================================================
 # This rule installs platform-independent files, such as header files.
@@ -322,8 +326,8 @@ install-lib-binaries: installdirs
 	done
 	@list='$(lib_BINARIES)'; for p in $$list; do \
 	  if test -f $$p; then \
-	    echo " $(RANLIB) $(DESTDIR)$(bindir)/$$p"; \
-	    $(RANLIB) $(DESTDIR)$(bindir)/$$p; \
+	    echo " $(RANLIB) $(DESTDIR)$(libdir)/$$p"; \
+	    $(RANLIB) $(DESTDIR)$(libdir)/$$p; \
 	  else :; fi; \
 	done
 
