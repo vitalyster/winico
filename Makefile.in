@@ -211,8 +211,8 @@ doc:
 install: all install-binaries install-libraries install-doc
 
 install-binaries: binaries install-lib-binaries install-bin-binaries
-	$(INSTALL_DATA) license.terms $(pkglibdir)/license.terms
-	$(INSTALL_DATA) Readme $(pkglibdir)/Readme
+	$(INSTALL_DATA) $(srcdir)/license.terms $(pkglibdir)
+	$(INSTALL_DATA) $(srcdir)/Readme $(pkglibdir)
 	$(WISH_PROG) mkIndex.tcl $(winico_LIB_FILE)
 
 #========================================================================
