@@ -47,7 +47,10 @@
 #define GETHINSTANCE GetHinstance()
 #define ISWIN32S  Wtk_test_win32s()
 #else
-#include <tkWinInt.h>
+
+#include <tk.h>
+#include <tkPlatDecls.h>
+
 #define GETHINSTANCE Tk_GetHINSTANCE()
 static int isWin32s=-1;
 #define ISWIN32S  isWin32s
@@ -65,6 +68,13 @@ static int isWin32s=-1;
 
 #endif
 
+
+#include <stdlib.h>
+
+/* Deal with Tcl 8.4 constificiation */
+#ifndef CONST84
+#define CONST84
+#endif
 
 //#define ICO_DEBUG
 
@@ -124,7 +134,7 @@ static DWORD BytesPerLine( LPBITMAPINFOHEADER lpBMIH );
 
 /****************************************************************************/
 // Prototypes for local functions
-static int ReadICOHeader( HANDLE hFile );
+static int ReadICOHeader( Tcl_Channel channel );
 static BOOL AdjustIconImagePointers( LPICONIMAGE lpImage );
 /****************************************************************************/
 
@@ -373,41 +383,54 @@ static char* myrealloc(char* p,size_t n){
 *
 * History:
 *                July '95 - Created
+*                14-Apr-2004: Use VFS file access API (Pat Thoyts).
 *
 \****************************************************************************/
-LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
-    LPICONRESOURCE    	lpIR , lpNew ;
-    HANDLE            	hFile;
+LPICONRESOURCE 
+ReadIconFromICOFile(Tcl_Interp* interp, LPCSTR szFileName)
+{
+    LPICONRESOURCE    	lpIR = NULL, lpNew = NULL;
     int                 i;
     DWORD            	dwBytesRead;
     LPICONDIRENTRY    	lpIDE;
-
-
-    // Open the file
-    if( (hFile = CreateFile( szFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL )) == INVALID_HANDLE_VALUE )    {
-        Tcl_AppendResult(interp,"Error Opening File for Reading",(char*)NULL);
+    Tcl_Obj             *oPath;
+    Tcl_Channel         channel;
+    
+    Tcl_ResetResult(interp);
+    
+    /*
+     * Access the icon file. We use Tcl_FS* methods to support virtual 
+     * filesystems.
+     */
+    oPath = Tcl_NewStringObj(szFileName, -1);
+    Tcl_IncrRefCount(oPath);
+    
+    channel = Tcl_FSOpenFileChannel(interp, oPath, "r", 0644);
+    if (channel == NULL) {
         return NULL;
     }
-    // Allocate memory for the resource structure
-    if( (lpIR = (LPICONRESOURCE) ckalloc( sizeof(ICONRESOURCE) )) == NULL )    {
-        Tcl_AppendResult(interp,"Error Allocating Memory",(char*)NULL);
-        CloseHandle( hFile );
+    
+    if (Tcl_SetChannelOption(interp, channel, 
+                             "-translation", "binary") != TCL_OK) {
         return NULL;
+    }
+    
+    // Allocate memory for the resource structure
+    if ((lpIR = (LPICONRESOURCE) ckalloc( sizeof(ICONRESOURCE) )) == NULL ) {
+        Tcl_AppendResult(interp, "Error Allocating Memory", (char *)NULL);
+        goto close_error;
     }
     // Read in the header
-    if( (lpIR->nNumImages = ReadICOHeader( hFile )) == -1 )    {
-        Tcl_AppendResult(interp,"Error Reading File Header",(char*)NULL);
-        CloseHandle( hFile );
-        ckfree((char*) lpIR );
-        return NULL;
+    if ((lpIR->nNumImages = ReadICOHeader(channel)) == -1 ) {
+        Tcl_AppendResult(interp, "Error Reading File Header", (char*)NULL);
+        goto close_error;
     }
     // Adjust the size of the struct to account for the images
     if( (lpNew = (LPICONRESOURCE) myrealloc( (char*)lpIR, sizeof(ICONRESOURCE) + ((lpIR->nNumImages-1) * sizeof(ICONIMAGE)) )) == NULL )    {
         Tcl_AppendResult(interp,"Error Allocating Memory",(char*)NULL);
-        CloseHandle( hFile );
-        ckfree( (char*)lpIR );
-        return NULL;
+        goto close_error;
     }
+
     lpIR = lpNew;
     // Store the original name
     lstrcpy( lpIR->szOriginalICOFileName, szFileName );
@@ -415,22 +438,17 @@ LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
     // Allocate enough memory for the icon directory entries
     if( (lpIDE = (LPICONDIRENTRY) ckalloc( lpIR->nNumImages * sizeof( ICONDIRENTRY ) ) ) == NULL )     {
         Tcl_AppendResult(interp,"Error Allocating Memory",(char*)NULL);
-        CloseHandle( hFile );
-        ckfree( (char*)lpIR );
-        return NULL;
+        goto close_error;
     }
     // Read in the icon directory entries
-    if( ! ReadFile( hFile, lpIDE, lpIR->nNumImages * sizeof( ICONDIRENTRY ), &dwBytesRead, NULL ) )    {
+    if ((dwBytesRead = Tcl_Read(channel, (char*)lpIDE,
+                                lpIR->nNumImages * sizeof(ICONDIRENTRY))) < 0) {
         Tcl_AppendResult(interp,"Error Reading File",(char*)NULL);
-        CloseHandle( hFile );
-        ckfree( (char*)lpIR );
-        return NULL;
+        goto close_error;
     }
     if( dwBytesRead != lpIR->nNumImages * sizeof( ICONDIRENTRY ) )    {
         Tcl_AppendResult(interp,"Error Reading File",(char*)NULL);
-        CloseHandle( hFile );
-        ckfree( (char*)lpIR );
-        return NULL;
+        goto close_error;
     }
     // Loop through and read in each image
     for( i = 0; i < lpIR->nNumImages; i++ )    {
@@ -438,46 +456,31 @@ LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
         if( (lpIR->IconImages[i].lpBits = (LPBYTE) ckalloc(lpIDE[i].dwBytesInRes)) == NULL )
         {
             Tcl_AppendResult(interp,"Error Allocating Memory",(char*)NULL);
-            CloseHandle( hFile );
-            ckfree( (char*)lpIR );
-            ckfree( (char*)lpIDE );
-            return NULL;
+            goto close_error;
         }
         lpIR->IconImages[i].dwNumBytes = lpIDE[i].dwBytesInRes;
         // Seek to beginning of this image
-        if( SetFilePointer( hFile, lpIDE[i].dwImageOffset, NULL, FILE_BEGIN ) == 0xFFFFFFFF )
-        {
+        if (Tcl_Seek(channel, lpIDE[i].dwImageOffset, SEEK_SET) < 0) {
             Tcl_AppendResult(interp,"Error Seeking in File",(char*)NULL);
-            CloseHandle( hFile );
-            ckfree( (char*)lpIR );
-            ckfree( (char*)lpIDE );
-            return NULL;
+            goto close_error;
         }
         // Read it in
-        if( ! ReadFile( hFile, lpIR->IconImages[i].lpBits, lpIDE[i].dwBytesInRes, &dwBytesRead, NULL ) )
+        if ((dwBytesRead = Tcl_Read(channel, lpIR->IconImages[i].lpBits, 
+                                    lpIDE[i].dwBytesInRes)) < 0)
         {
             Tcl_AppendResult(interp,"Error Reading File",(char*)NULL);
-            CloseHandle( hFile );
-            ckfree( (char*)lpIR );
-            ckfree( (char*)lpIDE );
-            return NULL;
+            goto close_error;
         }
         if( dwBytesRead != lpIDE[i].dwBytesInRes )
         {
             Tcl_AppendResult(interp,"Error Reading File",(char*)NULL);
-            CloseHandle( hFile );
-            ckfree( (char*)lpIDE );
-            ckfree( (char*)lpIR );
-            return NULL;
+            goto close_error;
         }
         // Set the internal pointers appropriately
         if( ! AdjustIconImagePointers( &(lpIR->IconImages[i]) ) )
         {
             Tcl_AppendResult(interp,"Error Converting to Internal Format",(char*)NULL);
-            CloseHandle( hFile );
-            ckfree( (char*)lpIDE );
-            ckfree( (char*)lpIR );
-            return NULL;
+            goto close_error;
         }
         lpIR->IconImages[i].hIcon=MakeIconFromResource(&(lpIR->IconImages[i]));
         //lpIR->IconImages[i].hIcon=MakeIconFromResource(&(lpIR->IconImages[i]));
@@ -490,9 +493,18 @@ LPICONRESOURCE ReadIconFromICOFile(Tcl_Interp* interp,LPCTSTR szFileName){
     }
     // Clean up
     ckfree( (char*)lpIDE );
-    CloseHandle( hFile );
+    Tcl_Close(interp, channel);
+    Tcl_DecrRefCount(oPath);
     return lpIR;
+
+ close_error:
+    Tcl_Close(interp, channel);
+    Tcl_DecrRefCount(oPath);
+    ckfree((char *)lpIR);
+    ckfree((char *)lpIDE);
+    return NULL;
 }
+
 /* End ReadIconFromICOFile() **********************************************/
 
 
@@ -542,7 +554,7 @@ BOOL AdjustIconImagePointers( LPICONIMAGE lpImage )
 *
 *     PURPOSE:  Reads the header from an ICO file
 *
-*     PARAMS:   HANDLE hFile - handle to the file
+*     PARAMS:   Tcl_Channel channel - duh!
 *
 *     RETURNS:  UINT - Number of images in file, -1 for failure
 *
@@ -550,31 +562,37 @@ BOOL AdjustIconImagePointers( LPICONIMAGE lpImage )
 *                July '95 - Created
 *
 \****************************************************************************/
-static int ReadICOHeader( HANDLE hFile )
+static int 
+ReadICOHeader( Tcl_Channel channel )
 {
     WORD    Input;
     DWORD	dwBytesRead;
 
     // Read the 'reserved' WORD
-    if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
+    if ((dwBytesRead = Tcl_Read(channel, (char *)&Input, sizeof(WORD))) < 0)
         return -1;
+
     // Did we get a WORD?
-    if( dwBytesRead != sizeof( WORD ) )
+    if (dwBytesRead != sizeof( WORD ))
         return -1;
+
     // Was it 'reserved' ?   (ie 0)
     if( Input != 0 )
         return -1;
+
     // Read the type WORD
-    if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
+    if ((dwBytesRead = Tcl_Read(channel, (char *)&Input, sizeof(WORD))) < 0)
         return -1;
+
     // Did we get a WORD?
     if( dwBytesRead != sizeof( WORD ) )
         return -1;
     // Was it type 1?
     if( Input != 1 )
         return -1;
+
     // Get the count of images
-    if( ! ReadFile( hFile, &Input, sizeof( WORD ), &dwBytesRead, NULL ) )
+    if ((dwBytesRead = Tcl_Read(channel, (char *)&Input, sizeof( WORD ))) < 0)
         return -1;
     // Did we get a WORD?
     if( dwBytesRead != sizeof( WORD ) )
@@ -1194,21 +1212,29 @@ static void DestroyHandlerWindow(void) {
     DestroyWindow(handlerWindow);
 }
 
-static char* StandardIcon(char* arg){
-  if(!stricmp(arg,"application"))
-    return IDI_APPLICATION;
-  if(!stricmp(arg,"asterisk"))
-    return IDI_ASTERISK;
-  if(!stricmp(arg,"exclamation"))
-    return IDI_EXCLAMATION;
-  if(!stricmp(arg,"hand"))
-    return IDI_HAND;
-  if(!stricmp(arg,"question"))
-    return IDI_QUESTION;
-  if(!stricmp(arg,"winlogo"))
-    return IDI_WINLOGO;
-  return NULL;
+static char * 
+StandardIcon(CONST84 char* arg){
+    if (!stricmp(arg, "application"))
+        return IDI_APPLICATION;
+    if (!stricmp(arg, "asterisk"))
+        return IDI_ASTERISK;
+    if (!stricmp(arg, "error"))
+        return IDI_ERROR;
+    if (!stricmp(arg, "exclamation"))
+        return IDI_EXCLAMATION;
+    if (!stricmp(arg, "hand"))
+        return IDI_HAND;
+    if (!stricmp(arg, "question"))
+        return IDI_QUESTION;
+    if (!stricmp(arg, "information"))
+        return IDI_INFORMATION;
+    if (!stricmp(arg, "warning"))
+        return IDI_WARNING;
+    if (!stricmp(arg, "winlogo"))
+        return IDI_WINLOGO;
+    return NULL;
 }
+
 /*tries to get a valid window handle from a Tk-pathname for a toplevel*/
 static int NameOrHandle(Tcl_Interp* interp,char* arg,HWND* hwndPtr){
 #ifdef WTK
@@ -1253,28 +1279,33 @@ static int NameOrHandle(Tcl_Interp* interp,char* arg,HWND* hwndPtr){
 }
 
 
-static void WinIcoDestroy (ClientData clientData) {
-  IcoInfo* icoPtr;
-  IcoInfo* nextPtr;
-  Tcl_Interp* interp=(Tcl_Interp*)clientData;
-  DestroyHandlerWindow();
-  for (icoPtr = firstIcoPtr; icoPtr != NULL;
-      icoPtr = nextPtr) {
-    nextPtr=icoPtr->nextPtr;
-    FreeIcoPtr(interp,icoPtr);
-  }
+static void 
+WinIcoDestroy (ClientData clientData) 
+{
+    IcoInfo* icoPtr;
+    IcoInfo* nextPtr;
+    Tcl_Interp* interp=(Tcl_Interp*)clientData;
+    DestroyHandlerWindow();
+    for (icoPtr = firstIcoPtr; icoPtr != NULL;
+         icoPtr = nextPtr) {
+        nextPtr=icoPtr->nextPtr;
+        FreeIcoPtr(interp,icoPtr);
+    }
 }
 
-static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** argv){
+static int 
+WinIcoCmd(ClientData clientData, Tcl_Interp *interp, int argc, CONST84 char *argv[])
+{
     size_t length;
     HICON hIcon;
     int i;
     IcoInfo* icoPtr;
     if (argc < 2) {
-	Tcl_AppendResult(interp, "wrong # args: should be \"",
-		argv[0], " option ?arg arg ...?\"", (char *) NULL);
-	return TCL_ERROR;
+        Tcl_AppendResult(interp, "wrong # args: should be \"",
+                         argv[0], " option ?arg arg ...?\"", (char *) NULL);
+        return TCL_ERROR;
     }
+    
     length = strlen(argv[1]);
     if (strncmp(argv[1],"load",length) == 0 && (length >= 2)) {
       int number;
@@ -1302,11 +1333,11 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
         }
       }
       Tcl_ResetResult(interp);
-      arg=StandardIcon(argv[2]);
-      if(arg==NULL) {
-        arg=argv[2];
+      arg = StandardIcon(argv[2]);
+      if(arg == NULL) {
+        arg = (char*)argv[2];
       } else {
-        hinst=NULL;
+        hinst = NULL;
       }
       if((hIcon=LoadIcon(hinst,arg))!=NULL){
         NewIcon(interp,hIcon,ICO_LOAD,NULL,0);
@@ -1361,8 +1392,8 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " info ?id?\"", (char *) NULL);
 	    return TCL_ERROR;
 	}
-        if (( icoPtr = GetIcoPtr(interp, argv[2])) == NULL ) return TCL_ERROR;
-        if(icoPtr->itype==ICO_LOAD){
+        if (( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
+        if (icoPtr->itype==ICO_LOAD){
           char buffer[200];
           sprintf(buffer,
             "{-pos 0  -width 32 -height 32 -geometry 32x32 -bpp 4 -hicon 0x%x -ptr 0x0}",
@@ -1406,7 +1437,7 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " delete ?id?\"", (char *) NULL);
 	    return TCL_ERROR;
 	 }
-         icoPtr = GetIcoPtr(interp, argv[2]);
+         icoPtr = GetIcoPtr(interp, (char*)argv[2]);
 	 if (icoPtr == NULL) {
             Tcl_ResetResult(interp);
 	    return TCL_OK;
@@ -1420,7 +1451,7 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " hicon <id> \"", (char *) NULL);
 	    return TCL_ERROR;
 	 }
-         if (( icoPtr = GetIcoPtr(interp, argv[2])) == NULL ) return TCL_ERROR;
+         if (( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
          sprintf(interp->result,"0x%x",icoPtr->hIcon);
          return TCL_OK;
       } else if ((strncmp(argv[1], "pos", length) == 0) && (length >= 2)) {
@@ -1429,7 +1460,7 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " pos <id> ?newpos?\"", (char *) NULL);
 	    return TCL_ERROR;
 	 }
-         if(( icoPtr = GetIcoPtr(interp, argv[2])) == NULL ) return TCL_ERROR;
+         if(( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
          if(argc==3 || icoPtr->itype==ICO_LOAD ){
            sprintf(interp->result,"%d",icoPtr->iconpos);
          } else {
@@ -1451,9 +1482,9 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " text <id> ?newtext?\"", (char *) NULL);
 	    return TCL_ERROR;
 	 }
-         if(( icoPtr = GetIcoPtr(interp, argv[2])) == NULL ) return TCL_ERROR;
+         if(( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
          if(argc>3){
-           char* newtxt=argv[3];
+           char* newtxt=(char*)argv[3];
            if(icoPtr->taskbar_txt!=NULL){
              ckfree(icoPtr->taskbar_txt);
            }
@@ -1478,8 +1509,8 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
 		    argv[0], " <windowid> <id> ?big/small? ?pos?\"", (char *) NULL);
 	    return TCL_ERROR;
       }
-      if (NameOrHandle(interp,argv[2],&h)==TCL_ERROR) return TCL_ERROR;
-      if (( icoPtr = GetIcoPtr(interp, argv[3])) == NULL ) return TCL_ERROR;
+      if (NameOrHandle(interp,(char*)argv[2],&h)==TCL_ERROR) return TCL_ERROR;
+      if (( icoPtr = GetIcoPtr(interp, (char*)argv[3])) == NULL ) return TCL_ERROR;
       if(argc>4){
         if(!strcmp(argv[4],"small")) { iconsize=ICON_SMALL;}
         else if(!strcmp(argv[4],"big")) {iconsize=ICON_BIG;}
@@ -1541,11 +1572,11 @@ static int WinIcoCmd(ClientData clientData,Tcl_Interp* interp,int  argc,char** a
           Tcl_AppendResult(interp,"bad argument ",argv[2], "should be add,delete or modify",(char*)NULL);
           return TCL_ERROR;
         }
-        if(( icoPtr = GetIcoPtr(interp, argv[3])) == NULL ) return TCL_ERROR;
+        if(( icoPtr = GetIcoPtr(interp, (char *)argv[3])) == NULL ) return TCL_ERROR;
         hIcon=icoPtr->hIcon;
         txt=icoPtr->taskbar_txt;
         if(argc>4) {
-        for (count = argc-4, args = argv+4; count > 1; count -= 2, args += 2) {
+        for (count = argc-4, args = (char**)argv+4; count > 1; count -= 2, args += 2) {
           if (args[0][0] != '-')
             goto wrongargs2;
           c = args[0][1];
@@ -1609,12 +1640,16 @@ wrongargs2:
     return TCL_OK;
 }
 #ifdef WTK
-int TkWinIco_Init(Tcl_Interp* interp){
-   Tcl_CreateCommand(interp, "winico",WinIcoCmd,(ClientData)interp,WinIcoDestroy);
-   return TCL_OK;
+int 
+TkWinIco_Init(Tcl_Interp* interp)
+{
+    Tcl_CreateCommand(interp, "winico",WinIcoCmd,(ClientData)interp,WinIcoDestroy);
+    return TCL_OK;
 }
 #else
-static int DoInit (Tcl_Interp* interp) {
+static int 
+DoInit (Tcl_Interp* interp) 
+{
   OSVERSIONINFO info;
 #ifdef USE_TCL_STUBS
   if (Tcl_InitStubs (interp, "8.0", 0) == NULL) 
@@ -1632,22 +1667,25 @@ static int DoInit (Tcl_Interp* interp) {
   {
     return TCL_ERROR;
   }
-  if (Tcl_PkgProvide (interp, WINICO_NAME , WINICO_VERSION) != TCL_OK) {
+  if (Tcl_PkgProvide (interp, PACKAGE_NAME , PACKAGE_VERSION) != TCL_OK) {
     return TCL_ERROR;
   }
   info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
   GetVersionEx(&info);
   isWin32s = (info.dwPlatformId == VER_PLATFORM_WIN32s);
-  Tcl_CreateCommand (interp, "winico", WinIcoCmd,
-		     (ClientData)interp,
-		     (Tcl_CmdDeleteProc *) WinIcoDestroy);
+  Tcl_CreateCommand(interp, "winico", WinIcoCmd,
+                    (ClientData)interp,
+                    (Tcl_CmdDeleteProc *) WinIcoDestroy);
   return TCL_OK;
 }
-EXPORT(int,Winico_Init)(Tcl_Interp* interp) {
+
+EXPORT(int,Winico_Init)(Tcl_Interp* interp) 
+{
   return DoInit(interp);
 }
 
-EXPORT(int,Winico_SafeInit)(Tcl_Interp* interp) {
+EXPORT(int,Winico_SafeInit)(Tcl_Interp* interp) 
+{
   return DoInit(interp);
 }
 /*

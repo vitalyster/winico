@@ -1,3 +1,23 @@
+2004-04-21  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* tkwinico.c: Modified to support reading files from Tcl virtual
+	file systems.
+	* tkwinic.rc: Updated to use macros for the version and fixed the
+	version resource.
+	
+	* doc/winico.man: New documentation file using the tcllib doctools
+	format which will generate html/nroff/tex output.
+	
+	* win/Makefile.vc:        Added updated MSVC++ build system from
+	* win/nmakehlp.c:         the tcl sampleextension.
+	* win/rules.vc:
+
+	* configure.in:           Updated the build files to TEA 3.0 with     
+	* Makefile.in:            modifications to support the building
+	* aclocal.m4:             of Win32 resource files. Tested under Msys
+	* tclconfig/install-sh:   with mingw-gcc and cl (VC++ compiler).
+	* tclconfig/tcl.m4:       
+
 2001-05-28  David Gravereaux <davygrvy@pobox.com>
 
 	* license.terms:

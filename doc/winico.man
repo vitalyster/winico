@@ -1,0 +1,156 @@
+[manpage_begin winico n 1.1]
+[copyright {1997-1998, Brueckner&Jarosch}]
+[moddesc   {winico}]
+[titledesc {Windows Icon extension for Tcl/Tk}]
+[require Tcl 8.4]
+[require winico [opt 0.5]]
+[description]
+[para]
+
+The Winico extension is an extension that provides enhanced
+handling of icons for Tk applications under Window. This includes
+loading icons from icon files and from executable resources and also
+provides Taskbar icon management.
+
+[section COMMANDS]
+
+[list_begin definitions]
+
+[call [cmd "winico createfrom"] [arg filename]]
+
+Load icons from a .ico file. If successful this command returns an
+identifier that should be used to access this resource with other 
+[cmd winico] commands.  Icon files often contains several icons for the
+different color depths on the screen and may contain different sizes
+(e.g. 16x16 and 23x32 icons) To obtain information on what has been
+loaded, see the [cmd info] subcommand.
+
+[call [cmd "winico load"] [arg resourcename] [opt [arg filename]]]
+
+Load icons from the resource section of an executable file (.exe or .dll).
+Only icons for the current colordepth are loaded (unlike the [cmd createfrom]
+subcommand. [arg resourcename] may be a string identifier or a number
+that identifies the item in the resource file. If no [arg filename] is
+given then you may load some standard windows icons.
+"application", "asterisk", "exclamation", "hand", "question".
+
+[call [cmd "winico info"] [opt [arg id]]]
+
+Returns information about icon resources managed by this extension. If
+[arg id] is ommitted then the command returns a list of all the
+current icon ids. If an icon [arg id] is specified then the result is
+a list option value pairs for each icon in the icon resource For
+identifiers created via [cmd "winico load"] the values given are not
+relevant.
+
+[list_begin opt]
+[opt_def "-pos"]
+   position inside the iconresource (beginning from 0)
+[opt_def "-width"]
+   width of the icon in pixels
+[opt_def "-height"]
+  height of the icon in pixels
+[opt_def "-geometry"]
+  widthxheight in pixels (for convenience)
+[opt_def "-bpp"]
+      color depth in bits per pixel (4 means 16 colors)
+[opt_def "-hicon"]
+    windows icon handle for this icon (in the actual version
+    all hicons of a resource will be immediately created after 
+    reading from disk, in later versions this may occur on demand , 
+    to economize system load )
+[opt_def "-ptr"]
+      C-pointer of the internal struct, only interesting for hackers :-)
+[list_end]
+
+[call [cmd "winico setwindow"] [arg windowid]\
+    [arg id]\
+    [opt [arg big|small]]\
+    [opt [arg pos]]]
+
+Set the icon for the toplevel window given by [arg windowid] which may
+be either the Tk pathname for the window, or a valid Windows HWND
+value (for use with non-Tk windows).
+NOTE: the window MUST BE MAPPED. If not then this may fail or crash.
+[list_begin opt]
+[opt_def big|small]
+   If ?big/small? is "big"(default) the taskbar icon AND the caption icon 
+   are set under Win95/WinNT, if it's "small" only the small caption icon
+   is set (via WM_SETICON).
+   Under Win32s ?big/small? is ignored (setting done via SetClassLong())
+   (for setting individual toplevels different Windows-classnames per toplevel
+    would be required , TkToplevel0, TkToplevel1 and so on)
+
+[opt_def pos]
+   If [arg pos] is set , the icon with that -pos number is used for setting
+   the toplevel icon, otherwise winico chooses the first  32x32 16color icon
+   (could be improved a little bit)
+   This option only has an effect on icons, created with the "createfrom"
+   subcommand
+[list_end]
+
+[call [cmd "winico delete"] [arg identifier]]
+
+Free the resource identified by provided identifier. This command is
+always successful, even in [arg identifier] is invalid.
+
+[call [cmd "winico taskbar"] [arg add|modify|delete] [arg icon-identifier]\
+    [opt [arg {-callback tclcallback}]]\
+    [opt [arg {-pos <iconposition>}]]\
+    [opt [arg {-text <tooltiptext>}]]]
+
+   adds , modifies or deletes an icon to or from  the taskbar status area
+   if you want to add an icon the 1st time to the taskbar status area, use "add"
+   and the current "hicon" is used to be displayed in the
+   taskbar.
+   To modify the text or the icon displayed in the taskbar status area,
+   use "-pos" and "-text" options to change the current settings and then
+   call the "modify" subcommand. (in the most cases "add" is enough I think)
+   "-pos" only has effect on icons created with "createfrom".
+   The remove an icon from the status area, use the "winico taskbar delete <id>"
+   or simply call "winico delete <id>"
+   The optional callback (set with -callback) is for specifying a tcl-callback,
+   if the user moves or clicks with the mouse over the icon in the status area.
+   In the callback there are bind-like abbreviations possible :
+        (tkbind was my friend:-)
+   %m - the windows message specifier (WM_LBUTTONDOWN,WM_MOUSEMOVE a.s.o)
+   %i - the icon identifier           (ico#1, ico#2 a.s.o)
+   %x - current xposition of the cursor 
+   %x - current yposition of the cursor 
+   %X - xposition of the cursor when the last windows-message was processed
+   %Y - yposition of the cursor when the last windows-message was processed
+        (%X,%Y may differ from %x,%y however the difference is marginal )
+   %t - current tickcount of the system
+   %w - wParam of the internal callback message (the integer part of %i)
+   %l - lParam of the internal callback message (integer value of %m)
+   %% - a %-sign
+
+[list_end]
+
+[section EXAMPLES]
+
+[para]
+[example {
+% winico createfrom icons/smiley.ico
+ico#5
+% winico info ico#5
+{-pos 0 -width 32 -height 32 -geometry 32x32 -bpp 4 -hicon 0x670081 -ptr 0xf99884} {-pos 1 -width 16 -height 16 -geometry 16x16 -bpp 4 -hicon 0xad01b4 -ptr 0xf99884}
+}]
+
+[para]
+[example {
+winico taskbar add ico#1 -pos 1 -text "big tcp server" \
+                         -callback "mytclproc %m %i %X %Y"
+...
+proc mytclproc { msg ico x y } {
+  if { $msg=="WM_RBUTTONDOWN" } {
+    create_context_menu $ico $x $y
+  }
+}
+}]
+   
+[section AUTHORS]
+Leo Schubert, Brueckner&Jarosch Ing.-GmbH
+
+[keywords icon]
+[manpage_end]

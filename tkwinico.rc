@@ -1,32 +1,60 @@
-//
-// Version
-//
+/* tkwinico.rc - 
+ *
+ * Resources (version and icons) for the Winico package.
+ *
+ * Copyright (c) 1997-1998 Brueckner&Jarosch
+ * Copyright (c) 2004 Patrick Thoyts <patthoyts@users.sourceforge.net>
+ *
+ * The reason for the STRINGIFY stuff is that gcc's windres resource
+ * compiler has a problem passing quoted strings as macros on its 
+ * command line. This works around this problem.
+ *
+ * $Id$
+ */
 
-#define RESOURCE_INCLUDED
+#include <winver.h>
 
-#define STRINGIFY1(x)       #x
-#define STRINGIFY(x)        STRINGIFY1(x) 
- 
+#ifndef STRINGIFY
+#  define STRINGIFY(x) STRINGIFY1(x)
+#  define STRINGIFY1(x)  #x
+#endif
+
+#ifdef PACKAGE_NAME
+#define _NAME STRINGIFY(PACKAGE_NAME)
+#else
+#define _NAME "unknown"
+#endif
+
+#ifdef PACKAGE_VERSION
+#define _VERSION STRINGIFY(PACKAGE_VERSION)
+#else
+#define _VERSION "0.0"
+#endif
+
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION    0,0,0,0
- PRODUCTVERSION 0,0,0,0
+ FILEVERSION    PACKAGE_RC_VERSION
+ PRODUCTVERSION PACKAGE_RC_VERSION
  FILEFLAGSMASK	0x3fL
+#ifdef DEBUG
+ FILEFLAGS	VS_FF_DEBUG
+#else
  FILEFLAGS	0x0L
- FILEOS		0x4L
- FILETYPE	0x2L
+#endif
+ FILEOS		VOS__WINDOWS32
+ FILETYPE	VFT_DLL
  FILESUBTYPE	0x0L
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "040904b0"
+        BLOCK "040904b0" /* LANG_ENGLISH/SUBLANG_ENGLISH_US, Unicode CP */
         BEGIN
-            VALUE "FileDescription", WINICO_NAME "DLL\0"
-            VALUE "OriginalFilename", "winico" ICO_DLL_VERSION ".dll\0"
-            VALUE "CompanyName", "Brueckner&Jarosch\0"
-            VALUE "FileVersion", WINICO_VERSION
-            VALUE "LegalCopyright", "Copyright \251 1997-1998\0"
-            VALUE "ProductName", "Winico " WINICO_VERSION " for Windows\0"
-            VALUE "ProductVersion", WINICO_VERSION
+            VALUE "FileDescription",  _NAME " extension\0"
+            VALUE "OriginalFilename", _NAME _VERSION ".dll\0"
+            VALUE "CompanyName",      "Brueckner&Jarosch\0"
+            VALUE "FileVersion",      _VERSION "\0"
+            VALUE "LegalCopyright",   "Copyright \251 1997-1998\0"
+            VALUE "ProductName",      _NAME " " _VERSION "\0"
+            VALUE "ProductVersion",   _VERSION "\0"
         END
     END
     BLOCK "VarFileInfo"
@@ -35,11 +63,11 @@ BEGIN
     END
 END
 
-//
-// Icons
-//
+/*
+ * Icons
+ */
+
 #define ANUMBER 1
 smiley  ICON    DISCARDABLE     "smiley.ico"
 leo     ICON    DISCARDABLE     "leo.ico"
 ANUMBER ICON    DISCARDABLE     "leo.ico"
-
