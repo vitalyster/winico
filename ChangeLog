@@ -1,3 +1,11 @@
+2005-09-26  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* tkwinico.c: Added a fix for bug #1304594 which is about popup
+	menus not vanishing if the user clicks on the desktop. Fix is to
+	record the focus during WM_MOUSEMOVEs over the icon and use this
+	to bring the Tk application to the foreground when the popup is
+	posted. See also http://support.microsoft.com/kb/q135788
+
 2004-11-02  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
 	* tkwinico.c:       Applied patch #1084268 (by Sergei Golovan)

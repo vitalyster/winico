@@ -843,6 +843,7 @@ typedef struct IcoInfo {
     Tcl_Interp* interp;         /*interp which created the icon*/
     char* taskbar_command;      /*command to eval if events in the taskbar arrive*/
     int taskbar_flags;        /*taskbar related flags*/
+    HWND hwndFocus;
     struct IcoInfo *nextPtr;
 } IcoInfo;
 
@@ -979,6 +980,7 @@ static IcoInfo* NewIcon (Tcl_Interp* interp,
   icoPtr->interp  =interp;
   icoPtr->taskbar_command=NULL;
   icoPtr->taskbar_flags=0;
+  icoPtr->hwndFocus = NULL;
   if(itype==ICO_LOAD) {
     icoPtr->lpIR=(LPICONRESOURCE)NULL;
     icoPtr->iconpos = 0;
@@ -1040,186 +1042,228 @@ static IcoInfo* GetIcoPtr(Tcl_Interp* interp,char* string){
     return NULL;
 }
 
-static int GetInt(long theint,char* buffer){
-  sprintf(buffer,"0x%x",theint);
-  return strlen(buffer);
+static int
+GetInt(long theint, char *buffer)
+{
+    sprintf(buffer,"0x%x",theint);
+    return strlen(buffer);
 }
-static int GetIntDec(long theint,char* buffer){
-  sprintf(buffer,"%d",theint);
-  return strlen(buffer);
+
+static int
+GetIntDec(long theint, char *buffer)
+{
+    sprintf(buffer,"%d",theint);
+    return strlen(buffer);
 }
-static char* TaskbarExpandPercents(IcoInfo* icoPtr,char* msgstring,
-                                WPARAM wParam,LPARAM lParam,
-                                char* before,char* after,int* aftersize)
+
+static char* 
+TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
+    WPARAM wParam, LPARAM lParam, char *before, char *after, int *aftersize)
 {
 #define SPACELEFT (*aftersize-(dst-after)-1)
 #define AFTERLEN ((*aftersize>0)?(*aftersize*2):1024)
 #define ALLOCLEN ((len>AFTERLEN)?(len*2):AFTERLEN)
-char buffer[20];
-char* dst;
-  dst = after;
-  while (*before) {
-    char *ptr=before;
-    int len=1;
-    if(*before=='%') {
-      switch(before[1]){
-        case 'M':
-        case 'm': {
-          before++;
-          len=strlen(msgstring);
-          ptr=msgstring;
-          break;
-        }
-        /* case 'W': {
-          before++;
-          len=strlen(winstring);
-          ptr=winstring;
-          break;
-        }
-        */
-        case 'i': {
-          before++;
-          sprintf(buffer, "ico#%d", icoPtr->id);
-          len=strlen(buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'w': {
-          before++;
-          len=GetInt((long)wParam,buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'l': {
-          before++;
-          len=GetInt((long)lParam,buffer);
-          ptr=buffer;
-          break;
-        }
-        case 't': {
-          before++;
-          len=GetInt((long)GetTickCount(),buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'x': {
-          POINT pt;
-          GetCursorPos(&pt);
-          before++;
-          len=GetIntDec((long)pt.x,buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'y': {
-          POINT pt;
-          GetCursorPos(&pt);
-          before++;
-          len=GetIntDec((long)pt.y,buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'X': {
-          DWORD dw;
-          dw=GetMessagePos();
-          before++;
-          len=GetIntDec((long)LOWORD(dw),buffer);
-          ptr=buffer;
-          break;
-        }
-        case 'Y': {
-          DWORD dw;
-          dw=GetMessagePos();
-          before++;
-          len=GetIntDec((long)HIWORD(dw),buffer);
-          ptr=buffer;
-          break;
-        }
-        case '%': {
-          before++;
-          len=1;
-          ptr="%";
-          break;
-        }
-      }
+    char buffer[20];
+    char* dst;
+    dst = after;
+    while (*before) {
+	char *ptr=before;
+	int len=1;
+	if(*before=='%') {
+	    switch(before[1]){
+		case 'M':
+		case 'm': {
+		    before++;
+		    len=strlen(msgstring);
+		    ptr=msgstring;
+		    break;
+		}
+		/* case 'W': {
+		   before++;
+		   len=strlen(winstring);
+		   ptr=winstring;
+		   break;
+		   }
+		*/
+		case 'i': {
+		    before++;
+		    sprintf(buffer, "ico#%d", icoPtr->id);
+		    len=strlen(buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'w': {
+		    before++;
+		    len=GetInt((long)wParam,buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'l': {
+		    before++;
+		    len=GetInt((long)lParam,buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 't': {
+		    before++;
+		    len=GetInt((long)GetTickCount(),buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'x': {
+		    POINT pt;
+		    GetCursorPos(&pt);
+		    before++;
+		    len=GetIntDec((long)pt.x,buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'y': {
+		    POINT pt;
+		    GetCursorPos(&pt);
+		    before++;
+		    len=GetIntDec((long)pt.y,buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'X': {
+		    DWORD dw;
+		    dw=GetMessagePos();
+		    before++;
+		    len=GetIntDec((long)LOWORD(dw),buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'Y': {
+		    DWORD dw;
+		    dw=GetMessagePos();
+		    before++;
+		    len=GetIntDec((long)HIWORD(dw),buffer);
+		    ptr=buffer;
+		    break;
+		}
+		case 'H': {
+		    before++;
+		    len = GetInt((long)icoPtr->hwndFocus, buffer);
+		    ptr = buffer;
+		    break;
+		}
+		case '%': {
+		    before++;
+		    len=1;
+		    ptr="%";
+		    break;
+		}
+	    }
+	}
+	if (SPACELEFT < len) {
+	    char *newspace;
+	    int dist=dst-after;
+	    int alloclen=ALLOCLEN;
+	    newspace = (char *) ckalloc(alloclen);
+	    if(dist>0)
+		memcpy((VOID *) newspace, (VOID *) after, dist);
+	    if(after && *aftersize)
+		ckfree(after);
+	    *aftersize =alloclen;
+	    after = newspace;
+	    dst=after+dist;
+	}
+	if(len>0)
+	    memcpy(dst,ptr,len);
+	dst+=len;
+	if((dst-after)>(*aftersize-1))
+	    panic("oops\n");
+	before++;
     }
-    if(SPACELEFT<len) {
-      char *newspace;
-      int dist=dst-after;
-      int alloclen=ALLOCLEN;
-      newspace = (char *) ckalloc(alloclen);
-      if(dist>0)
-        memcpy((VOID *) newspace, (VOID *) after, dist);
-      if(after && *aftersize)
-        ckfree(after);
-      *aftersize =alloclen;
-      after = newspace;
-      dst=after+dist;
-    }
-    if(len>0)
-      memcpy(dst,ptr,len);
-    dst+=len;
-    if((dst-after)>(*aftersize-1))
-      panic("oops\n");
-    before++;
-  }
-  *dst=0;
-  return after;
+    *dst=0;
+    return after;
 }
-static void TaskbarEval(IcoInfo* icoPtr,WPARAM wParam,LPARAM lParam) {
-  char* msgstring="none";
-  char evalspace[200];
-  int evalsize=200;
-  char* expanded;
-  switch (lParam) {
-    case WM_MOUSEMOVE    :msgstring="WM_MOUSEMOVE";    break;
-    case WM_LBUTTONDOWN  :msgstring="WM_LBUTTONDOWN";  break;
-    case WM_LBUTTONUP    :msgstring="WM_LBUTTONUP";    break;
-    case WM_LBUTTONDBLCLK:msgstring="WM_LBUTTONDBLCLK";break;
-    case WM_RBUTTONDOWN  :msgstring="WM_RBUTTONDOWN";  break;
-    case WM_RBUTTONUP    :msgstring="WM_RBUTTONUP";    break;
-    case WM_RBUTTONDBLCLK:msgstring="WM_RBUTTONDBLCLK";break;
-    case WM_MBUTTONDOWN  :msgstring="WM_MBUTTONDOWN";  break;
-    case WM_MBUTTONUP    :msgstring="WM_MBUTTONUP";    break;
-    case WM_MBUTTONDBLCLK:msgstring="WM_MBUTTONDBLCLK";break;
-  }
-  expanded = TaskbarExpandPercents(icoPtr,msgstring,wParam,lParam,
-                             icoPtr->taskbar_command,evalspace, &evalsize);
-  if (icoPtr->interp!=NULL) {
-    int result=Tcl_GlobalEval(icoPtr->interp,expanded);
-    if(result!=TCL_OK){
-       char buffer[100];
-       sprintf(buffer, "\n  (command bound to taskbar-icon ico#%d)",icoPtr->id);
-       Tcl_AddErrorInfo(icoPtr->interp, buffer);
-       Tcl_BackgroundError(icoPtr->interp);
+
+static void 
+TaskbarEval(IcoInfo* icoPtr,WPARAM wParam,LPARAM lParam) {
+    char* msgstring="none";
+    char evalspace[200];
+    int evalsize=200;
+    char* expanded;
+    int fixup = 0;
+
+    switch (lParam) {
+	case WM_MOUSEMOVE:
+	    msgstring = "WM_MOUSEMOVE";
+	    icoPtr->hwndFocus = GetFocus();
+	    break;
+	case WM_LBUTTONDOWN  :msgstring="WM_LBUTTONDOWN";  fixup = 1; break;
+	case WM_LBUTTONUP    :msgstring="WM_LBUTTONUP";    fixup = 1; break;
+	case WM_LBUTTONDBLCLK:msgstring="WM_LBUTTONDBLCLK";fixup = 1; break;
+	case WM_RBUTTONDOWN  :msgstring="WM_RBUTTONDOWN";  fixup = 1; break;
+	case WM_RBUTTONUP    :msgstring="WM_RBUTTONUP";    fixup = 1; break;
+	case WM_RBUTTONDBLCLK:msgstring="WM_RBUTTONDBLCLK";fixup = 1; break;
+	case WM_MBUTTONDOWN  :msgstring="WM_MBUTTONDOWN";  fixup = 1; break;
+	case WM_MBUTTONUP    :msgstring="WM_MBUTTONUP";    fixup = 1; break;
+	case WM_MBUTTONDBLCLK:msgstring="WM_MBUTTONDBLCLK";fixup = 1; break;
+	default:              msgstring = "WM_NULL";       fixup = 0;
     }
-  }
-  if(expanded!=evalspace){
-    ckfree(expanded);
-  }
+    expanded = TaskbarExpandPercents(icoPtr,msgstring,wParam,lParam,
+	icoPtr->taskbar_command,evalspace, &evalsize);
+    if (icoPtr->interp!=NULL) {
+	int result;
+	HWND hwnd = NULL;
+	
+	/* See http//:support.microsoft.com/kb/q135788 */
+	if (fixup) {
+	    if (icoPtr->hwndFocus != NULL && IsWindow(icoPtr->hwndFocus)) {
+		hwnd = icoPtr->hwndFocus;
+	    } else {
+		Tk_Window tkwin = Tk_MainWindow(icoPtr->interp);
+		hwnd = Tk_GetHWND(Tk_WindowId(tkwin));
+	    }
+	    SetForegroundWindow(hwnd);
+	}
+
+	result = Tcl_GlobalEval(icoPtr->interp, expanded);
+
+	if (hwnd != NULL) {
+	    /* See http://support.microsoft.com/kb/q135788/ */
+	    PostMessage(hwnd, WM_NULL, 0, 0);
+	}
+	if (result != TCL_OK) {
+	    char buffer[100];
+	    sprintf(buffer, "\n  (command bound to taskbar-icon ico#%d)",icoPtr->id);
+	    Tcl_AddErrorInfo(icoPtr->interp, buffer);
+	    Tcl_BackgroundError(icoPtr->interp);
+	}
+    }
+    if (expanded != evalspace) {
+	ckfree(expanded);
+    }
 }
 
 /*
   Windows callback procedure, if ICON_MESSAGE arrives, try to execute
   the taskbar_command
 */
-static LRESULT CALLBACK TaskbarHandlerProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  switch(message) {
-    case ICON_MESSAGE: {
-      IcoInfo* icoPtr;
-      //dprintf("ICON_MESSAGE 0x%x,wParam 0x%x lParam 0x%x\n",message,wParam,lParam);
-      for (icoPtr = firstIcoPtr; icoPtr != NULL;
-        icoPtr = icoPtr->nextPtr) {
-        if (wParam==(WPARAM)icoPtr->id) {
-          if(icoPtr->taskbar_command!=NULL) {
-            TaskbarEval(icoPtr,wParam,lParam);
-          }
-        }
-      }
-      return 0;
+static LRESULT CALLBACK 
+TaskbarHandlerProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
+{
+    switch (message) {
+	case ICON_MESSAGE: {
+	    IcoInfo *icoPtr;
+	    //dprintf("ICON_MESSAGE 0x%x,wParam 0x%x lParam 0x%x\n",message,wParam,lParam);
+	    for (icoPtr = firstIcoPtr; icoPtr != NULL;
+		 icoPtr = icoPtr->nextPtr) {
+		if (wParam == (WPARAM)icoPtr->id) {
+		    if (icoPtr->taskbar_command != NULL) {
+			TaskbarEval(icoPtr,wParam,lParam);
+		    }
+		}
+	    }
+	    return 0;
+	}
     }
-  }
-  return DefWindowProc(hwnd, message, wParam, lParam);
+    return DefWindowProc(hwnd, message, wParam, lParam);
 }
+
 /*registers the handler window class*/
 #define HANDLER_CLASS "Wtk_TaskbarHandler"
 static int RegisterHandlerClass(HINSTANCE hInstance)
@@ -1238,23 +1282,31 @@ static int RegisterHandlerClass(HINSTANCE hInstance)
    wndclass.lpszClassName = HANDLER_CLASS;
    return RegisterClass(&wndclass);
 }
+
 static HWND handlerWindow=(HWND)0;
+
 /*creates a hidden window to handle taskbar messages*/
-static HWND CreateTaskbarHandlerWindow(void) {
-  static int registered=0;
-  HINSTANCE hInstance=GETHINSTANCE;
-  if(handlerWindow)
-    return handlerWindow;
-  if(!registered){
-    if(!RegisterHandlerClass(hInstance))return 0;
-    registered=1;
-  }
-  return (handlerWindow=CreateWindow(HANDLER_CLASS,"",WS_OVERLAPPED,0,0,
-    CW_USEDEFAULT,CW_USEDEFAULT,NULL, NULL, hInstance, NULL));
+static HWND 
+CreateTaskbarHandlerWindow(void) 
+{
+    static int registered = 0;
+    HINSTANCE hInstance = GETHINSTANCE;
+    if (handlerWindow)
+	return handlerWindow;
+    if (!registered){
+	if (!RegisterHandlerClass(hInstance))
+	    return 0;
+	registered = 1;
+    }
+    return (handlerWindow = CreateWindow(HANDLER_CLASS,"",WS_OVERLAPPED,0,0,
+	CW_USEDEFAULT,CW_USEDEFAULT,NULL, NULL, hInstance, NULL));
 }
-static void DestroyHandlerWindow(void) {
-  if(handlerWindow)
-    DestroyWindow(handlerWindow);
+
+static void
+DestroyHandlerWindow(void) 
+{
+    if(handlerWindow)
+	DestroyWindow(handlerWindow);
 }
 
 static char * 
