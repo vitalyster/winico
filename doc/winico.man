@@ -1,9 +1,9 @@
-[manpage_begin winico n 1.1]
+[manpage_begin winico n 0.6]
 [copyright {1997-1998, Brueckner&Jarosch}]
 [moddesc   {winico}]
 [titledesc {Windows Icon extension for Tcl/Tk}]
 [require Tcl 8.4]
-[require winico [opt 0.5]]
+[require winico [opt 0.6]]
 [description]
 [para]
 
@@ -142,7 +142,7 @@ always successful, even in [arg id] is invalid.
 The following Windows events will generate calls to a callback
 procedure registered by the [cmd "winico taskbar"] command. The
 following lists all the possible values of %m in the callback
-substitution.
+substitution. Typically WM_RBUTTONUP is bound to a context menu.
 [list_begin opt]
 [opt_def WM_MOUSEMOVE]
 [opt_def WM_LBUTTONDOWN]
@@ -168,12 +168,14 @@ ico#5
 
 [para]
 [example {
-winico taskbar add ico#1 -pos 1 -text "big tcp server" \
-                         -callback "mytclproc %m %i %X %Y"
+set contextmenu [menu .popup -tearoff 0]
 ...
-proc mytclproc { msg ico x y } {
-  if { $msg=="WM_RBUTTONDOWN" } {
-    create_context_menu $ico $x $y
+winico taskbar add ico#1 -pos 1 -text "big tcp server" \
+                         -callback "mytclproc $contextmenu %m %i %X %Y"
+...
+proc mytclproc {contextmenu msg ico x y } {
+  if { $msg=="WM_RBUTTONUP" } {
+    $contextmenu post $x $y
   }
 }
 }]

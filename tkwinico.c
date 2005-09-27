@@ -1769,17 +1769,17 @@ DoInit (Tcl_Interp* interp)
 {
   OSVERSIONINFO info;
 #ifdef USE_TCL_STUBS
-  if (Tcl_InitStubs (interp, "8.0", 0) == NULL) 
+  if (Tcl_InitStubs (interp, TCL_VERSION, 0) == NULL) 
 #else
-  if (Tcl_PkgRequire (interp, "Tcl", "8.0", 0) == NULL) 
+  if (Tcl_PkgRequire (interp, "Tcl", TCL_VERSION, 0) == NULL) 
 #endif
   {
     return TCL_ERROR;
   }
 #ifdef USE_TK_STUBS
-  if (Tk_InitStubs (interp, "8.0", 0) == NULL) 
+  if (Tk_InitStubs (interp, TK_VERSION, 0) == NULL) 
 #else
-  if (Tcl_PkgRequire (interp, "Tk", "8.0", 0) == NULL) 
+  if (Tcl_PkgRequire (interp, "Tk", TK_VERSION, 0) == NULL) 
 #endif
   {
     return TCL_ERROR;
