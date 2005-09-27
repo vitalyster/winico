@@ -67,6 +67,9 @@ proc Main {} {
     grid rowconfigure . 0 -weight 1
     grid columnconfigure . 0 -weight 1
 
+    bind . <Control-F2> {console show}
+    bind . <Escape> {Exit}
+
     # Run the program and wait for the user to finish.
     tkwait variable [namespace current]::App(run)
 
