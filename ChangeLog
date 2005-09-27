@@ -1,5 +1,9 @@
 2005-09-27  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
+	* demos/*:    Created a demos subdir and a new demo application
+	Moved the previous scripts into this subdir and renamed as 
+	sample.tcl/sample2.tcl. Dumped the teki stuff.
+
 	* tkwinico.c: Fixed error string to remove 'createfromfile'
 
 	* tkwinico.c: Eliminated all use of interp->result as this has
