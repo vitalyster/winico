@@ -21,7 +21,7 @@
 # RCS: @(#)$Id$
 #-------------------------------------------------------------------------
 
-!if "$(MSVCDIR)" == ""
+!if !defined(MSDEVDIR) && !defined(MSVCDIR) && !defined(VCToolkitInstallDir)
 MSG = ^
 You will need to run vcvars32.bat from Developer Studio, first, to setup^
 the environment.  Jump to this line to read the new instructions.
@@ -153,13 +153,11 @@ Please `cd` to its location first.
 #
 #-------------------------------------------------------------------------
 
-PROJECT = winico
+PROJECT = Winico
 !include "rules.vc"
 
-MAJOR_VERSION   =0
-MINOR_VERSION   =6
-DOTVERSION      =$(MAJOR_VERSION).$(MINOR_VERSION)
-VERSION         =$(MAJOR_VERSION)$(MINOR_VERSION)
+DOTVERSION      =0.6
+VERSION         =$(DOTVERSION:.=)
 STUBPREFIX      =$(PROJECT)stub
 
 DLLOBJS = \
@@ -181,11 +179,13 @@ PRJSTUBLIBNAME	= $(STUBPREFIX)$(VERSION).lib
 PRJSTUBLIB	= $(OUT_DIR)\$(PRJSTUBLIBNAME)
 
 ### Make sure we use backslash only.
-LIB_INSTALL_DIR		= $(_INSTALLDIR)\lib
-BIN_INSTALL_DIR		= $(_INSTALLDIR)\bin
-DOC_INSTALL_DIR		= $(_INSTALLDIR)\doc
-SCRIPT_INSTALL_DIR	= $(_INSTALLDIR)\lib\$(PROJECT)$(DOTVERSION)
-INCLUDE_INSTALL_DIR	= $(_INSTALLDIR)\include
+PRJ_INSTALL_DIR         = $(_INSTALLDIR)\$(PROJECT)$(DOTVERSION)
+LIB_INSTALL_DIR		= $(PRJ_INSTALL_DIR)
+BIN_INSTALL_DIR		= $(PRJ_INSTALL_DIR)
+DOC_INSTALL_DIR		= $(PRJ_INSTALL_DIR)
+SCRIPT_INSTALL_DIR	= $(PRJ_INSTALL_DIR)
+DEMO_INSTALL_DIR	= $(PRJ_INSTALL_DIR)
+INCLUDE_INSTALL_DIR	= $(_TCLDIR)\include
 
 ### The following paths CANNOT have spaces in them.
 GENERICDIR	= $(ROOT)
@@ -194,14 +194,7 @@ LIBDIR          = $(ROOT)
 DOCDIR		= $(ROOT)\doc
 TOOLSDIR	= $(ROOT)\tools
 COMPATDIR	= $(ROOT)\compat
-
-### Find a tclsh for testing and installation.
-!if !exist("$(TCLSH)")
-TCLSH           = $(BIN_INSTALL_DIR)\tclsh$(TCL_VERSION).exe
-!endif
-!if !exist("$(WISH)")
-WISH           = $(BIN_INSTALL_DIR)\wish$(TK_VERSION).exe
-!endif
+DEMODIR         = $(ROOT)\demos
 
 #---------------------------------------------------------------------
 # Compile flags
@@ -216,9 +209,9 @@ cdebug	=
 !endif
 !else if "$(MACHINE)" == "IA64"
 ### Warnings are too many, can't support warnings into errors.
-cdebug	= -Z7 -Od
+cdebug	= -Z7 -Od -GZ
 !else
-cdebug	= -Z7 -WX -Od
+cdebug	= -Z7 -WX -Od -GZ
 !endif
 
 ### Declarations common to all compiler options
@@ -246,16 +239,14 @@ crt = -MT
 !endif
 !endif
 
-DEFS            = -DPACKAGE_NAME="\"Winico\""\
-		  -DPACKAGE_VERSION="\"$(DOTVERSION)\""
-RC_DEFS         = -DPACKAGE_NAME="Winico"\
-		  -DPACKAGE_VERSION="$(DOTVERSION)"\
-		  -DPACKAGE_RC_VERSION="$(MAJOR_VERSION),$(MINOR_VERSION),0,0"
-INCLUDES	= $(TCL_INCLUDES) -I"$(WINDIR)" -I"$(GENERICDIR)"
-BASE_CLFAGS	= $(cflags) $(cdebug) $(crt) $(INCLUDES) $(DEFS)
+INCLUDES	= $(TCL_INCLUDES) $(TK_INCLUDES) \
+		  -I"$(WINDIR)" -I"$(GENERICDIR)" -I"$(DXSDKINC)"
+BASE_CFLAGS	= $(cflags) $(cdebug) $(crt) $(INCLUDES)
 CON_CFLAGS	= $(cflags) $(cdebug) $(crt) -DCONSOLE
 TCL_CFLAGS	= -DUSE_TCL_STUBS -DUSE_TK_STUBS \
-		  -DVERSION="\"$(DOTVERSION)\"" $(BASE_CLFAGS) $(OPTDEFINES)
+		  -DPACKAGE_VERSION="\"$(DOTVERSION)\"" \
+		  -DPACKAGE_NAME="\"$(PROJECT)\"" \
+		  $(BASE_CFLAGS) $(OPTDEFINES)
 
 #---------------------------------------------------------------------
 # Link flags
@@ -296,7 +287,7 @@ baselibs   = $(TCLSTUBLIB) $(TKSTUBLIB) user32.lib gdi32.lib
 #---------------------------------------------------------------------
 
 !IF "$(TESTPAT)" != ""
-TESTFLAGS = -file $(TESTPAT)
+TESTFLAGS = $(TESTFLAGS) -file $(TESTPAT)
 !ENDIF
 
 #---------------------------------------------------------------------
@@ -305,18 +296,41 @@ TESTFLAGS = -file $(TESTPAT)
 
 all:	    setup $(PROJECT)
 $(PROJECT): setup $(PRJLIB)
-install:    install-binaries install-libraries install-docs
+install:    install-binaries install-libraries install-demos install-docs
 
 
-test: setup $(PROJECT)
-	set TCL_LIBRARY=$(ROOT)/library
+# Tests need to ensure we load the right dll file we
+# have to handle the output differently on Win9x.
+#
 !if "$(OS)" == "Windows_NT"  || "$(MSVCDIR)" == "IDE"
-	$(TCLSH) "$(ROOT)/tests/all.tcl" $(TESTFLAGS)
+test: setup $(PROJECT)
+        set TCL_LIBRARY=$(ROOT)/library
+        $(WISH) <<
+package require Tk
+load [file join [file normalize {$(OUT_DIR)}] $(PRJLIBNAME)]
+cd "$(ROOT)/tests"
+set argv "$(TESTFLAGS)"
+source all.tcl
+<<
 !else
-	@echo Please wait while the tests are collected...
-	$(TCLSH) "$(ROOT)/tests/all.tcl" $(TESTFLAGS) > tests.log
-	type tests.log | more
+test: setup $(PROJECT)
+        echo Please wait while the test results are collected
+        set TCL_LIBRARY=$(ROOT)/library
+        $(WISH) << >tests.log
+package require Tk
+load [file join [file normalize {$(OUT_DIR)}] $(PRJLIBNAME)]
+cd "$(ROOT)/tests"
+set argv "$(TESTFLAGS)"
+source all.tcl
+<<
+        type tests.log | more
 !endif
+
+demo: setup $(PROJECT)
+	$(WISH) <<
+	load [file join [file normalize {$(OUT_DIR)}] $(PRJLIBNAME)]
+	source [file join [file normalize {$(ROOT)}] demos demo.tcl]
+<<
 
 setup:
 	@if not exist $(OUT_DIR)\nul mkdir $(OUT_DIR)
@@ -351,7 +365,10 @@ $<
 <<
 
 {$(WINDIR)}.rc{$(TMP_DIR)}.res:
-	$(rc32) -fo $@ -r -i "$(GENERICDIR)" $(RC_DEFS) -D__WIN32__ \
+	$(rc32) -fo $@ -r -i "$(GENERICDIR)" -D__WIN32__ \
+                -DCOMMAVERSION=$(DOTVERSION:.=,),0 \
+                -DDOTVERSION=\"$(DOTVERSION)\" \
+                -DVERSION=\"$(VERSION)$(SUFX)\" \
 !if $(DEBUG)
 	-d DEBUG \
 !endif
@@ -363,8 +380,19 @@ $<
 !endif
 	$<
 
+DTPLITE=dtplite
+{$(DOCDIR)}.man{$(DOCDIR)}.html:
+	$(DTPLITE) -o $@ html $<
+        @set TCL_LIBRARY=$(ROOT)/library
+        @$(TCLSH) <<
+set name $(@:\=/)
+set f [open $$name r]; set d [read $$f]; close $$f
+set d [regsub {</head>} $$d {<link rel="stylesheet" href="manpage.css" type="text/css"></head>}]
+set f [open $$name w]; puts -nonewline $$f $$d; close $$f
+<<
+
 .SUFFIXES:
-.SUFFIXES:.c .rc
+.SUFFIXES:.c .rc .man
 
 #---------------------------------------------------------------------
 # Installation. (EDIT)
@@ -375,17 +403,31 @@ $<
 #---------------------------------------------------------------------
 
 install-binaries:
-	@echo Installing to '$(SCRIPT_INSTALL_DIR)'
-	@if not exist $(SCRIPT_INSTALL_DIR)\nul mkdir $(SCRIPT_INSTALL_DIR)
-	$(CPY) $(PRJLIB) $(SCRIPT_INSTALL_DIR)
+	@echo Installing binaries to '$(SCRIPT_INSTALL_DIR)'
+	@if not exist "$(SCRIPT_INSTALL_DIR)" mkdir "$(SCRIPT_INSTALL_DIR)"
+	@$(CPY) $(PRJLIB) "$(SCRIPT_INSTALL_DIR)" >NUL
 
 install-libraries:
-	@echo Installing to '$(SCRIPT_INSTALL_DIR)'
-	@if exist $(LIBDIR)\nul $(CPY) $(LIBDIR)\*.tcl $(SCRIPT_INSTALL_DIR)
-	@cd $(SCRIPT_INSTALL_DIR)
-	@echo pkg_mkIndex -verbose . | $(TCLSH)
+	@echo Installing libraries to '$(SCRIPT_INSTALL_DIR)'
+	@if exist $(LIBDIR)\nul $(CPY) $(LIBDIR)\*.tcl "$(SCRIPT_INSTALL_DIR)" >NUL
+	@echo Installing package index in '$(SCRIPT_INSTALL_DIR)'
+	@type << >"$(SCRIPT_INSTALL_DIR)\pkgIndex.tcl"
+# $(PROJECT) pkgIndex
+if {[info exists ::tcl_platform(debug)]} {
+   package ifneeded $(PROJECT) $(DOTVERSION) [list load [file join $$dir $(PROJECT)$(VERSION)g.$(EXT)]]
+} else {
+   package ifneeded $(PROJECT) $(DOTVERSION) [list load [file join $$dir $(PROJECT)$(VERSION).$(EXT)]]
+}
+<<
+
+install-demos:
+	@echo Installing demo files to '$(DEMO_INSTALL_DIR)'
+	@if exist $(DEMODIR)\nul $(CPY) $(DEMODIR)\*.tcl $(DEMO_INSTALL_DIR) >NUL
 
 install-docs:
+	@echo Installing documentation files to '$(DOC_INSTALL_DIR)'
+	@if exist $(DOCDIR) $(CPY) $(DOCDIR)\*.html "$(DOC_INSTALL_DIR)" >NUL
+	@if exist $(DOCDIR) $(CPY) $(DOCDIR)\*.css "$(DOC_INSTALL_DIR)" >NUL
 
 #---------------------------------------------------------------------
 # Clean up
@@ -393,6 +435,7 @@ install-docs:
 
 clean:
 	@if exist $(TMP_DIR)\nul $(RMDIR) $(TMP_DIR)
+	@if exist $(WINDIR)\version.vc del $(WINDIR)\version.vc
 
 realclean: clean
 	@if exist $(OUT_DIR)\nul $(RMDIR) $(OUT_DIR)

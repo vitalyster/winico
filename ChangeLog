@@ -1,5 +1,11 @@
 2005-09-27  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
+	* win/Makefile.vc:  updated the build system
+	* win/rules.vc: 
+	* tkwinico.rc:
+
+	* tkwinico.c: The whitespace police paid a visit.
+
 	* demos/*:    Created a demos subdir and a new demo application
 	Moved the previous scripts into this subdir and renamed as 
 	sample.tcl/sample2.tcl. Dumped the teki stuff.
