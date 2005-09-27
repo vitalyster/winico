@@ -1,5 +1,7 @@
 2005-09-27  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
+	* all:   ----- TAGGED: winico-0-6 ------
+	
 	* tkwinico.c: Added support for recovering after Explorer
 	restarts. Windows Explorer broadcasts an undocumented message to
 	notify tooltray apps to re-add themselves to the tray.
