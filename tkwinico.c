@@ -923,75 +923,84 @@ int NotifyW (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt) {
   return notify_funcW(oper,&ni);
 }
 
-static int TaskbarOperation (Tcl_Interp* interp,IcoInfo* icoPtr,int oper,HICON hIcon,char* txt) {
-  int result;
-
-  if(notify_funcA==NULL && notify_funcW==NULL && hmod==NULL) {
-    hmod=GetModuleHandle("SHELL32.DLL");
-    if(hmod==NULL)
-      hmod=LoadLibrary("SHELL32.DLL");
-    if(hmod==NULL){
-      Tcl_AppendResult(interp,"Could not Load SHELL32.DLL",(char*)NULL);
-      return TCL_ERROR;
+static int 
+TaskbarOperation (Tcl_Interp *interp, IcoInfo *icoPtr, 
+    int oper, HICON hIcon, char* txt) 
+{
+    int result;
+    
+    if (notify_funcA == NULL && notify_funcW == NULL && hmod == NULL) {
+        hmod = GetModuleHandle("SHELL32.DLL");
+	if (hmod == NULL)
+	    hmod = LoadLibrary("SHELL32.DLL");
+	if (hmod == NULL) {
+	    Tcl_AppendResult(interp, "Could not Load SHELL32.DLL",(char*)NULL);
+	    return TCL_ERROR;
+	}
+	notify_funcW = GetProcAddress(hmod, "Shell_NotifyIconW");
+	notify_funcA=GetProcAddress(hmod, "Shell_NotifyIconA");
+	if (notify_funcW == NULL && notify_funcA == NULL) {
+	    Tcl_AppendResult(interp, "Could not get address of Shell_NotifyIconW or Shell_NotifyIconA",
+		(char*)NULL);
+	    return TCL_ERROR;
+	}
+    } else if (notify_funcA == NULL && notify_funcW == NULL) {
+	Tcl_AppendResult(interp,"You probably don't have a Windows shell",(char*)NULL);
+	return TCL_ERROR;
     }
-    if((notify_funcW=GetProcAddress(hmod,"Shell_NotifyIconW"))==NULL) {
-      if((notify_funcA=GetProcAddress(hmod,"Shell_NotifyIconA"))==NULL) {
-        Tcl_AppendResult(interp, "Could not get address of Shell_NotifyIconW or Shell_NotifyIconA",
-			 (char*)NULL);
-        return TCL_ERROR;
-      }
+    if (notify_funcW != NULL) {
+	result = NotifyW(icoPtr, oper, hIcon, txt) || NotifyA(icoPtr, oper, hIcon, txt);
+    } else {
+	result = NotifyA(icoPtr, oper, hIcon, txt);
     }
-  } else if (notify_funcA==NULL && notify_funcW==NULL) {
-    Tcl_AppendResult(interp,"You probably don't have a Windows shell",(char*)NULL);
-    return TCL_ERROR;
-  }
-  if (notify_funcW!=NULL) {
-    result=NotifyW(icoPtr,oper,hIcon,txt);
-  } else {
-    result=NotifyA(icoPtr,oper,hIcon,txt);
-  }
-  sprintf(interp->result,"%d",result);
-  if(result==1) {
-    if  (oper==NIM_ADD || oper==NIM_MODIFY) {
-      icoPtr->taskbar_flags|=TASKBAR_ICON;
+    Tcl_SetObjResult(interp, Tcl_NewIntObj(result));
+    if (result == 1) {
+	if (oper == NIM_ADD || oper == NIM_MODIFY) {
+	    icoPtr->taskbar_flags |= TASKBAR_ICON;
+	}
+	if (oper == NIM_DELETE) {
+	    icoPtr->taskbar_flags &= ~TASKBAR_ICON;
+	}
     }
-    if(oper==NIM_DELETE) {
-      icoPtr->taskbar_flags&=~TASKBAR_ICON;
-    }
-  }
-  return TCL_OK;
+    return TCL_OK;
 }
 
-static IcoInfo* NewIcon (Tcl_Interp* interp,
-                  HICON hIcon,int itype,LPICONRESOURCE lpIR,int iconpos) {
-  static int nextId = 1;
-  char buffer[50];
-  IcoInfo* icoPtr;
-  icoPtr = (IcoInfo *) ckalloc((unsigned) (sizeof(IcoInfo)));
-  memset(icoPtr,0,sizeof(IcoInfo));
-  icoPtr->id      =nextId;
-  icoPtr->hIcon   =hIcon;
-  icoPtr->itype   =itype;
-  icoPtr->lpIR    =lpIR;
-  icoPtr->iconpos =iconpos;
-  sprintf(buffer,"ico#%d",icoPtr->id);
-  icoPtr->taskbar_txt=ckalloc(strlen(buffer)+1);
-  strcpy(icoPtr->taskbar_txt,buffer);
-  icoPtr->interp  =interp;
-  icoPtr->taskbar_command=NULL;
-  icoPtr->taskbar_flags=0;
-  icoPtr->hwndFocus = NULL;
-  if(itype==ICO_LOAD) {
-    icoPtr->lpIR=(LPICONRESOURCE)NULL;
-    icoPtr->iconpos = 0;
-  }
-  nextId += 1;
-  icoPtr->nextPtr = firstIcoPtr;
-  firstIcoPtr = icoPtr;
-  sprintf(interp->result, "ico#%d", icoPtr->id);
-  return icoPtr;
+static IcoInfo *
+NewIcon (Tcl_Interp *interp, HICON hIcon, 
+    int itype, LPICONRESOURCE lpIR, int iconpos) 
+{
+    static int nextId = 1;
+    int n;
+    char buffer[5 + TCL_INTEGER_SPACE];
+    IcoInfo* icoPtr;
+
+    icoPtr = (IcoInfo *) ckalloc((unsigned) (sizeof(IcoInfo)));
+    memset(icoPtr, 0, sizeof(IcoInfo));
+    icoPtr->id      = nextId;
+    icoPtr->hIcon   = hIcon;
+    icoPtr->itype   = itype;
+    icoPtr->lpIR    = lpIR;
+    icoPtr->iconpos = iconpos;
+    n = _snprintf(buffer, sizeof(buffer)-1, "ico#%d", icoPtr->id); buffer[n] = 0;
+    icoPtr->taskbar_txt = ckalloc(strlen(buffer)+1);
+    strcpy(icoPtr->taskbar_txt, buffer);
+    icoPtr->interp  = interp;
+    icoPtr->taskbar_command= NULL;
+    icoPtr->taskbar_flags = 0;
+    icoPtr->hwndFocus = NULL;
+    if(itype==ICO_LOAD) {
+	icoPtr->lpIR = (LPICONRESOURCE)NULL;
+	icoPtr->iconpos = 0;
+    }
+    nextId += 1;
+    icoPtr->nextPtr = firstIcoPtr;
+    firstIcoPtr = icoPtr;
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(buffer, -1));
+    return icoPtr;
 }
-static void FreeIcoPtr(Tcl_Interp* interp,IcoInfo* icoPtr)
+
+static void 
+FreeIcoPtr(Tcl_Interp *interp, IcoInfo *icoPtr)
 {
     IcoInfo *prevPtr;
     if (firstIcoPtr == icoPtr) {
@@ -1333,46 +1342,54 @@ StandardIcon(CONST84 char* arg){
 }
 
 /*tries to get a valid window handle from a Tk-pathname for a toplevel*/
-static int NameOrHandle(Tcl_Interp* interp,char* arg,HWND* hwndPtr){
+static int
+NameOrHandle(Tcl_Interp* interp, char* arg,HWND* hwndPtr)
+{
 #ifdef WTK
 #define WINFO_FRAME "winfo id "
 #else
 #define WINFO_FRAME "wm frame "
-  Tk_Window tkwin;
+    Tk_Window tkwin;
+    size_t limit = 0;
 #endif
-  char * cmd;
-  if(Tcl_GetInt(interp,arg,(int*)hwndPtr)==TCL_OK) { return TCL_OK; }
-  Tcl_ResetResult(interp);
+    char * cmd;
+    if (Tcl_GetInt(interp,arg,(int*)hwndPtr)==TCL_OK) {
+	return TCL_OK; 
+    }
+    Tcl_ResetResult(interp);
 #ifdef WTK
-  if((*hwndPtr=Wtk_GetHandle(interp,arg))==0)
+    if ((*hwndPtr=Wtk_GetHandle(interp,arg))==0)
 #else
-  tkwin = Tk_NameToWindow(interp, arg,Tk_MainWindow(interp));
-  if(tkwin==NULL)
+	tkwin = Tk_NameToWindow(interp, arg,Tk_MainWindow(interp));
+    if(tkwin==NULL)
 #endif
-  {
-    Tcl_AppendResult(interp,arg," is no valid windowpath",(char*)NULL);
-    return TCL_ERROR;
-  }
+    {
+	Tcl_AppendResult(interp,arg," is no valid windowpath",(char*)NULL);
+	return TCL_ERROR;
+    }
 #ifndef WTK
-  if(!Tk_IsTopLevel(tkwin)){
-    Tcl_AppendResult(interp,arg," is not a toplevel valid windowpath",(char*)NULL);
-    return TCL_ERROR;
-  }
+    if(!Tk_IsTopLevel(tkwin)){
+	Tcl_AppendResult(interp,arg," is not a toplevel valid windowpath",(char*)NULL);
+	return TCL_ERROR;
+    }
 #endif
-  cmd=ckalloc(strlen(arg)+strlen(WINFO_FRAME)+1);
-  strcpy(cmd,WINFO_FRAME);
-  strcat(cmd,arg);
-  if(Tcl_Eval(interp,cmd)==TCL_ERROR) { return TCL_ERROR; }
-  strcpy(cmd,interp->result);
-  if(sscanf(cmd,"0x%x",(int*)hwndPtr)!=1){
-    Tcl_AppendResult(interp,"couldn't scan ",cmd,(char*)NULL);
-    return TCL_ERROR;
-  }
-  if(*hwndPtr==NULL){
-    Tcl_AppendResult(interp,"couldn't get windowid from ",cmd,(char*)NULL);
-    return TCL_ERROR;
-  }
-  return TCL_OK;
+    limit = strlen(arg) + strlen(WINFO_FRAME);
+    cmd = ckalloc(limit + 1);
+    strcpy(cmd, WINFO_FRAME);
+    strcat(cmd, arg);
+    if (Tcl_Eval(interp,cmd) == TCL_ERROR) {
+	return TCL_ERROR; 
+    }
+    strncpy(cmd, Tcl_GetStringResult(interp), limit); cmd[limit] = 0;
+    if (sscanf(cmd, "0x%x", (int*)hwndPtr) != 1){
+	Tcl_AppendResult(interp,"couldn't scan ", cmd, (char*)NULL);
+	return TCL_ERROR;
+    }
+    if (*hwndPtr == NULL){
+	Tcl_AppendResult(interp, "couldn't get windowid from ",cmd,(char*)NULL);
+	return TCL_ERROR;
+    }
+    return TCL_OK;
 }
 
 
@@ -1543,13 +1560,16 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp, int argc, CONST84 char *arg
          return TCL_OK;
       } else if ((strncmp(argv[1], "hicon", length) == 0)
 	     && (length >= 2)) {
+	  char buf[TCL_INTEGER_SPACE + 3];
+	  int n;
          if (argc != 3) {
 	    Tcl_AppendResult(interp, "wrong # args: should be \"",
 		    argv[0], " hicon <id> \"", (char *) NULL);
 	    return TCL_ERROR;
 	 }
          if (( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
-         sprintf(interp->result,"0x%x",icoPtr->hIcon);
+	 n = _snprintf(buf, sizeof(buf) - 1, "0x%x", icoPtr->hIcon); buf[n] = 0;
+	 Tcl_SetObjResult(interp, Tcl_NewStringObj(buf, -1));
          return TCL_OK;
       } else if ((strncmp(argv[1], "pos", length) == 0) && (length >= 2)) {
          if (argc < 3) {
@@ -1559,7 +1579,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp, int argc, CONST84 char *arg
 	 }
          if(( icoPtr = GetIcoPtr(interp, (char*)argv[2])) == NULL ) return TCL_ERROR;
          if(argc==3 || icoPtr->itype==ICO_LOAD ){
-           sprintf(interp->result,"%d",icoPtr->iconpos);
+	     Tcl_SetObjResult(interp, Tcl_NewIntObj(icoPtr->iconpos));
          } else {
            int newpos;
            if(Tcl_GetInt(interp,argv[3],&newpos)==TCL_ERROR) {
@@ -1641,7 +1661,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp, int argc, CONST84 char *arg
           result=GetClassLong(h,GCL_HICON);
         }
       }
-      sprintf(interp->result,"%d",result);
+      Tcl_SetObjResult(interp, Tcl_NewIntObj(result));
       return TCL_OK;
       } else if ((strncmp(argv[1], "taskbar", length) == 0)  && (length >= 2)) {
         //TkWindow * tkwin=NULL;
