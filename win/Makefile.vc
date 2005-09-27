@@ -408,21 +408,18 @@ install-binaries:
 	@$(CPY) $(PRJLIB) "$(SCRIPT_INSTALL_DIR)" >NUL
 
 install-libraries:
-	@echo Installing libraries to '$(SCRIPT_INSTALL_DIR)'
-	@if exist $(LIBDIR)\nul $(CPY) $(LIBDIR)\*.tcl "$(SCRIPT_INSTALL_DIR)" >NUL
+	@rem @echo Installing libraries to '$(SCRIPT_INSTALL_DIR)'
+	@rem @if exist $(LIBDIR)\nul $(CPY) $(LIBDIR)\*.tcl "$(SCRIPT_INSTALL_DIR)" >NUL
 	@echo Installing package index in '$(SCRIPT_INSTALL_DIR)'
 	@type << >"$(SCRIPT_INSTALL_DIR)\pkgIndex.tcl"
 # $(PROJECT) pkgIndex
-if {[info exists ::tcl_platform(debug)]} {
-   package ifneeded $(PROJECT) $(DOTVERSION) [list load [file join $$dir $(PROJECT)$(VERSION)g.$(EXT)]]
-} else {
-   package ifneeded $(PROJECT) $(DOTVERSION) [list load [file join $$dir $(PROJECT)$(VERSION).$(EXT)]]
-}
+package ifneeded $(PROJECT) $(DOTVERSION) [list load [file join $$dir $(PROJECT)$(VERSION).$(EXT)]]
 <<
 
 install-demos:
 	@echo Installing demo files to '$(DEMO_INSTALL_DIR)'
 	@if exist $(DEMODIR)\nul $(CPY) $(DEMODIR)\*.tcl $(DEMO_INSTALL_DIR) >NUL
+	@if exist $(DEMODIR)\nul $(CPY) $(DEMODIR)\*.ico $(DEMO_INSTALL_DIR) >NUL
 
 install-docs:
 	@echo Installing documentation files to '$(DOC_INSTALL_DIR)'

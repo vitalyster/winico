@@ -16,8 +16,6 @@ if {[file exists $dbgfile]} {
     load $dbgfile
 } elseif {[file exists $relfile]} {
     load $relfile
-} else {
-    tk_messageBox -message "not found in $dbgfile"
 }
 
 package require Winico 0.6
@@ -25,10 +23,12 @@ package require Winico 0.6
 # -------------------------------------------------------------------------
 
 variable App
-if {![info exists App]} { array set App {run 0 cleanup 0 dlg 0} }
+if {![info exists App]} { array set App {run 0 cleanup 0 dlg 0 wmstate normal} }
 
 proc Main {} {
     variable App
+
+    wm title . "Winico [package provide Winico] Demo"
 
     # Load an icon file with multiple icons or default to a system icon.
     set icofile [file join [file dirname [info script]] tkchat.ico]
@@ -41,9 +41,6 @@ proc Main {} {
     # As of 0.6 unicode is supported in the text strings
     winico text $icon "Nothing selected (unicode: \u043a\u043c\u0436)"
 
-    # Set the application icon (this can be done with Tk's [wm iconbitmap])
-    winico setwindow . $icon small 0
-
     # Create a context menu to tie to the taskbar
     set m [menu .popup -tearoff 0]
     $m add command -label "Item One"   -command [list MenuCommand $icon 1]
@@ -51,6 +48,7 @@ proc Main {} {
     $m add command -label "Item Three" -command [list MenuCommand $icon 3]
     $m add command -label "Item Four"  -command [list MenuCommand $icon 4]
     $m add separator
+    $m add command -label "Withdraw"   -command [list Withdraw $m]
     $m add command -label "Exit"       -command [list Exit]
 
     # Hook up our taskbar icon and callback procedure
@@ -69,6 +67,11 @@ proc Main {} {
 
     bind . <Control-F2> {console show}
     bind . <Escape> {Exit}
+
+    # Wait for the window to map and then change the icon
+    tkwait visibility .
+    winico setwindow . $icon small 0
+    wm protocol . WM_DELETE_WINDOW Exit
 
     # Run the program and wait for the user to finish.
     tkwait variable [namespace current]::App(run)
@@ -92,6 +95,25 @@ proc Dialog {} {
     variable App
     set dlg [toplevel .dlg[incr App(dlg)]]
     pack [entry $dlg.e -textvariable [namespace current]::App($dlg)]
+}
+
+proc Withdraw {m} {
+    variable App
+    if {[wm state .] eq "withdrawn"} {
+        set ndx [$m index "Restore"]
+        if {$ndx != -1} {
+            $m entryconfigure $ndx -label "Withdraw"
+        }
+        wm state . $App(wmstate)
+        wm deiconify .
+    } else {
+        set ndx [$m index "Withdraw"]
+        if {$ndx != -1} {
+            $m entryconfigure $ndx -label "Restore"
+        }
+        set App(wmstate) [wm state .]
+        wm withdraw .
+    }
 }
 
 proc Exit {} {
