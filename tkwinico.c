@@ -1750,7 +1750,7 @@ wrongargs2:
         return TCL_ERROR;
     } else {
 	Tcl_AppendResult(interp, "bad argument \"", argv[1],
-		"\": must be load, createfromfile, info, hicon, pos, setwindow, text, taskbar",
+		"\": must be load, createfrom, info, hicon, pos, setwindow, text, taskbar",
 		(char *) NULL);
 	return TCL_ERROR;
     }

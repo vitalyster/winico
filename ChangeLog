@@ -1,7 +1,11 @@
 2005-09-27  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
+	* tkwinico.c: Fixed error string to remove 'createfromfile'
+
 	* tkwinico.c: Eliminated all use of interp->result as this has
 	been a depreciated API for a long time now.
+	
+	* tkwinico.c: Applied patch #1261911 to restore Win98 operation.
 
 2005-09-26  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
