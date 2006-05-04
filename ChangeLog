@@ -1,3 +1,8 @@
+2006-05-05  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* demos/trayapp.tcl: Added a new demo to show how to create a
+	taskbar tray application.
+
 2005-09-27  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
 	* all:   ----- TAGGED: winico-0-6 ------
