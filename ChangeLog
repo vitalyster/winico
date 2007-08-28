@@ -1,3 +1,9 @@
+2007-08-28  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* win/rules.vc:    Update the MSVC build system files for
+	* win/nmakehlp.c:  MSVC8 and AMD64 platform support
+	* win/makefile.vc:
+
 2006-07-22  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
 	* tclconfig/*:   Updated to TEA 3.5
