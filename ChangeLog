@@ -1,3 +1,9 @@
+2007-09-06  Pat Thoyts  <patthoyts@users.sourceforge.net>
+
+	* tkwinico.c: Fix for compilation to amd64-win64 target
+	* demos/teatimer.tcl: Another demo.
+	* Makefile.in: fix problems generating the resource object
+
 2007-08-28  Pat Thoyts  <patthoyts@users.sourceforge.net>
 
 	* win/rules.vc:    Update the MSVC build system files for

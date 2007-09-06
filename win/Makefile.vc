@@ -258,8 +258,8 @@ INCLUDES	= $(TCL_INCLUDES) $(TK_INCLUDES) \
 BASE_CFLAGS	= $(cflags) $(cdebug) $(crt) $(INCLUDES)
 CON_CFLAGS	= $(cflags) $(cdebug) $(crt) -DCONSOLE
 TCL_CFLAGS	= -DPACKAGE_NAME="\"$(PROJECT)\"" \
-			  -DPACKAGE_VERSION="\"$(DOTVERSION)\"" \
-		  	  -DBUILD_$(PROJECT) $(BASE_CFLAGS) $(OPTDEFINES)
+		  -DPACKAGE_VERSION="\"$(DOTVERSION)\"" \
+		  -DBUILD_$(PROJECT) -DHAVE_STDLIB_H=1 $(BASE_CFLAGS) $(OPTDEFINES)
 
 #---------------------------------------------------------------------
 # Link flags
@@ -406,7 +406,7 @@ $<
 
 {$(WINDIR)}.rc{$(TMP_DIR)}.res:
 	$(rc32) -fo $@ -r -i "$(GENERICDIR)" -D__WIN32__ \
-                -DCOMMAVERSION=$(DOTVERSION:.=,),0 \
+                -DCOMMAVERSION=$(DOTVERSION:.=,),0,0 \
                 -DDOTVERSION=\"$(DOTVERSION)\" \
                 -DVERSION=\"$(VERSION)$(SUFX)\" \
 !if $(DEBUG)

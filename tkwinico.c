@@ -44,6 +44,7 @@ static int isWin32s=-1;
 #if defined(_MSC_VER)
 #    define EXPORT(a,b) __declspec(dllexport) a b
 #    define DllEntryPoint DllMain
+#    define snprintf _snprintf
 #else
 #    if defined(__BORLANDC__)
 #        define EXPORT(a,b) a _export b
@@ -52,7 +53,13 @@ static int isWin32s=-1;
 #    endif
 #endif
 
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
 /* Deal with Tcl 8.4 constificiation */
 #ifndef CONST84
@@ -163,8 +170,11 @@ typedef struct _NOTIFYICONDATA { // nid
 #define HANDLER_CLASS "Wtk_TaskbarHandler"
 static HWND CreateTaskbarHandlerWindow(void);
 
-static FARPROC notify_funcA  = NULL;
-static FARPROC notify_funcW  = NULL;
+typedef BOOL (FAR WINAPI * LPFN_SHELLNOTIFYICONW)(DWORD, PNOTIFYICONDATAW);
+typedef BOOL (FAR WINAPI * LPFN_SHELLNOTIFYICONA)(DWORD, PNOTIFYICONDATAA);
+
+static LPFN_SHELLNOTIFYICONA notify_funcA = NULL;
+static LPFN_SHELLNOTIFYICONW notify_funcW  = NULL;
 static HMODULE hmod          = NULL;
 static HWND    handlerWindow = NULL;
 
@@ -400,15 +410,6 @@ FreeIconResource(LPICONRESOURCE lpIR)
     ckfree( (char*)lpIR );
 }
 
-static char *
-myrealloc(char* p,size_t n)
-{
-    char *q = ckalloc(n);
-    memcpy(q, p, n);
-    ckfree(p);
-    return q;
-}
-
 /****************************************************************************
 *
 *     FUNCTION: ReadIconFromICOFile
@@ -429,10 +430,10 @@ LPICONRESOURCE
 ReadIconFromICOFile(Tcl_Interp* interp, LPCSTR szFileName)
 {
     LPICONRESOURCE   lpIR = NULL, lpNew = NULL;
-    int              i;
-    DWORD            dwBytesRead;
-    LPICONDIRENTRY   lpIDE;
-    Tcl_Obj         *oPath;
+    int              i = 0;
+    DWORD            dwBytesRead = 0;
+    LPICONDIRENTRY   lpIDE = NULL;
+    Tcl_Obj         *oPath = NULL;
     Tcl_Channel      channel;
     
     Tcl_ResetResult(interp);
@@ -465,7 +466,7 @@ ReadIconFromICOFile(Tcl_Interp* interp, LPCSTR szFileName)
         goto close_error;
     }
     // Adjust the size of the struct to account for the images
-    if( (lpNew = (LPICONRESOURCE) myrealloc( (char*)lpIR, sizeof(ICONRESOURCE) + ((lpIR->nNumImages-1) * sizeof(ICONIMAGE)) )) == NULL )    {
+    if( (lpNew = (LPICONRESOURCE) ckrealloc( (char*)lpIR, sizeof(ICONRESOURCE) + ((lpIR->nNumImages-1) * sizeof(ICONIMAGE)) )) == NULL )    {
         Tcl_AppendResult(interp,"Error Allocating Memory",(char*)NULL);
         goto close_error;
     }
@@ -863,7 +864,7 @@ BytesPerLine( LPBITMAPINFOHEADER lpBMIH )
     return WIDTHBYTES(lpBMIH->biWidth * lpBMIH->biPlanes * lpBMIH->biBitCount);
 }
 
-static int 
+static BOOL
 NotifyA (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt) 
 {
     NOTIFYICONDATAA ni;
@@ -884,7 +885,7 @@ NotifyA (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt)
     return notify_funcA(oper, &ni);
 }
 
-static int 
+static BOOL
 NotifyW (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt) 
 {
     NOTIFYICONDATAW ni;
@@ -905,7 +906,7 @@ NotifyW (IcoInfo* icoPtr, int oper, HICON hIcon, char* txt)
     wcsncpy(ni.szTip, str, 63);
     ni.szTip[63] = 0;
     Tcl_DStringFree(&dst);
-    return notify_funcW(oper,&ni);
+    return notify_funcW(oper, &ni);
 }
 
 static int 
@@ -921,8 +922,8 @@ TaskbarOperation (IcoInfo *icoPtr, int oper, HICON hIcon, char *txt)
             Tcl_AppendResult(icoPtr->interp, "Could not Load SHELL32.DLL",(char*)NULL);
             return TCL_ERROR;
         }
-        notify_funcW = GetProcAddress(hmod, "Shell_NotifyIconW");
-        notify_funcA=GetProcAddress(hmod, "Shell_NotifyIconA");
+        notify_funcW = (LPFN_SHELLNOTIFYICONW)GetProcAddress(hmod, "Shell_NotifyIconW");
+        notify_funcA = (LPFN_SHELLNOTIFYICONA)GetProcAddress(hmod, "Shell_NotifyIconA");
         if (notify_funcW == NULL && notify_funcA == NULL) {
             Tcl_AppendResult(icoPtr->interp,
 		"Could not get address of Shell_NotifyIconW or Shell_NotifyIconA",
@@ -971,7 +972,7 @@ NewIcon (Tcl_Interp *interp, HICON hIcon,
     icoPtr->lpIR    = lpIR;
     icoPtr->iconpos = iconpos;
     n = _snprintf(buffer, sizeof(buffer)-1, "ico#%d", icoPtr->id); buffer[n] = 0;
-    icoPtr->taskbar_txt = ckalloc(strlen(buffer)+1);
+    icoPtr->taskbar_txt = ckalloc((int)strlen(buffer)+1);
     strcpy(icoPtr->taskbar_txt, buffer);
     icoPtr->interp  = interp;
     icoPtr->taskbar_command= NULL;
@@ -1041,17 +1042,19 @@ static IcoInfo* GetIcoPtr(Tcl_Interp* interp,char* string){
 }
 
 static int
-GetInt(long theint, char *buffer)
+GetInt(long theint, char *buffer, size_t len)
 {
-    sprintf(buffer,"0x%x",theint);
-    return strlen(buffer);
+    snprintf(buffer, len, "0x%lx", theint);
+    buffer[len-1] = 0;
+    return (int)strlen(buffer);
 }
 
 static int
-GetIntDec(long theint, char *buffer)
+GetIntDec(long theint, char *buffer, size_t len)
 {
-    sprintf(buffer,"%d",theint);
-    return strlen(buffer);
+    snprintf(buffer, len - 1, "%ld", theint);
+    buffer[len-1] = 0;
+    return (int)strlen(buffer);
 }
 
 static char* 
@@ -1061,7 +1064,7 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
 #define SPACELEFT (*aftersize-(dst-after)-1)
 #define AFTERLEN ((*aftersize>0)?(*aftersize*2):1024)
 #define ALLOCLEN ((len>AFTERLEN)?(len*2):AFTERLEN)
-    char buffer[20];
+    char buffer[TCL_INTEGER_SPACE + 5];
     char* dst;
     dst = after;
     while (*before) {
@@ -1072,39 +1075,39 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
                 case 'M':
                 case 'm': {
                     before++;
-                    len=strlen(msgstring);
+                    len=(int)strlen(msgstring);
                     ptr=msgstring;
                     break;
                 }
                 /* case 'W': {
                    before++;
-                   len=strlen(winstring);
+                   len=(int)strlen(winstring);
                    ptr=winstring;
                    break;
                    }
                 */
                 case 'i': {
                     before++;
-                    sprintf(buffer, "ico#%d", icoPtr->id);
-                    len=strlen(buffer);
+                    snprintf(buffer, sizeof(buffer) - 1, "ico#%d", icoPtr->id);
+                    len=(int)strlen(buffer);
                     ptr=buffer;
                     break;
                 }
                 case 'w': {
                     before++;
-                    len=GetInt((long)wParam,buffer);
+                    len=GetInt((long)wParam,buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
                 case 'l': {
                     before++;
-                    len=GetInt((long)lParam,buffer);
+                    len=GetInt((long)lParam,buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
                 case 't': {
                     before++;
-                    len=GetInt((long)GetTickCount(),buffer);
+                    len=GetInt((long)GetTickCount(), buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
@@ -1112,7 +1115,7 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
                     POINT pt;
                     GetCursorPos(&pt);
                     before++;
-                    len=GetIntDec((long)pt.x,buffer);
+                    len=GetIntDec((long)pt.x, buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
@@ -1120,7 +1123,7 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
                     POINT pt;
                     GetCursorPos(&pt);
                     before++;
-                    len=GetIntDec((long)pt.y,buffer);
+                    len=GetIntDec((long)pt.y,buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
@@ -1128,7 +1131,7 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
                     DWORD dw;
                     dw=GetMessagePos();
                     before++;
-                    len=GetIntDec((long)LOWORD(dw),buffer);
+                    len=GetIntDec((long)LOWORD(dw),buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
@@ -1136,13 +1139,13 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
                     DWORD dw;
                     dw=GetMessagePos();
                     before++;
-                    len=GetIntDec((long)HIWORD(dw),buffer);
+                    len=GetIntDec((long)HIWORD(dw),buffer, sizeof(buffer));
                     ptr=buffer;
                     break;
                 }
                 case 'H': {
                     before++;
-                    len = GetInt((long)icoPtr->hwndFocus, buffer);
+                    len = GetInt((long)icoPtr->hwndFocus, buffer, sizeof(buffer));
                     ptr = buffer;
                     break;
                 }
@@ -1156,8 +1159,8 @@ TaskbarExpandPercents(IcoInfo *icoPtr, char *msgstring,
         }
         if (SPACELEFT < len) {
             char *newspace;
-            int dist=dst-after;
-            int alloclen=ALLOCLEN;
+            ptrdiff_t dist = dst - after;
+            int alloclen = ALLOCLEN;
             newspace = (char *) ckalloc(alloclen);
             if(dist>0)
                 memcpy((VOID *) newspace, (VOID *) after, dist);
@@ -1376,7 +1379,7 @@ NameOrHandle(Tcl_Interp* interp, char* arg,HWND* hwndPtr)
         return TCL_ERROR;
     }
     limit = strlen(arg) + strlen(WINFO_FRAME);
-    cmd = ckalloc(limit + 1);
+    cmd = ckalloc((int) limit + 1);
     strcpy(cmd, WINFO_FRAME);
     strcat(cmd, arg);
     if (Tcl_Eval(interp,cmd) == TCL_ERROR) {
@@ -1464,8 +1467,8 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
             argv[2],"\"",(char*)NULL);
         return TCL_ERROR;
     } else if ((strncmp(argv[1], "createfrom", length) == 0) && (length >= 2)) {
-        LPICONRESOURCE lpIR;
-        int pos;
+        LPICONRESOURCE lpIR = NULL;
+        int pos = 0;
         if(argc<3) {
             Tcl_AppendResult(interp,"wrong # args,must be:",
                 argv[0]," createfrom <icofilename> ",(char*)NULL);
@@ -1514,7 +1517,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
             char buffer[200];
             sprintf(buffer,
                 "{-pos 0  -width 32 -height 32 -geometry 32x32 -bpp 4 -hicon 0x%x -ptr 0x0}",
-                icoPtr->hIcon);
+                (INT_PTR)icoPtr->hIcon);
             Tcl_AppendResult(interp,buffer,(char*)NULL);
         } else {
             Tcl_DStringInit(&dstr);
@@ -1531,16 +1534,18 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
                 sprintf(buffer,"%d",icoPtr->lpIR->IconImages[i].Height);
                 Tcl_DStringAppendElement(&dstr,buffer);
                 Tcl_DStringAppendElement(&dstr,"-geometry");
-                sprintf(buffer,"%dx%d",icoPtr->lpIR->IconImages[i].Width,icoPtr->lpIR->IconImages[i].Height);
+                sprintf(buffer,"%dx%d",
+		    icoPtr->lpIR->IconImages[i].Width,
+		    icoPtr->lpIR->IconImages[i].Height);
                 Tcl_DStringAppendElement(&dstr,buffer);
                 Tcl_DStringAppendElement(&dstr,"-bpp");
                 sprintf(buffer,"%d",icoPtr->lpIR->IconImages[i].Colors);
                 Tcl_DStringAppendElement(&dstr,buffer);
                 Tcl_DStringAppendElement(&dstr,"-hicon");
-                sprintf(buffer,"0x%x",icoPtr->lpIR->IconImages[i].hIcon);
+                sprintf(buffer,"0x%x", (INT_PTR)icoPtr->lpIR->IconImages[i].hIcon);
                 Tcl_DStringAppendElement(&dstr,buffer);
                 Tcl_DStringAppendElement(&dstr,"-ptr");
-                sprintf(buffer,"0x%x",icoPtr->lpIR);
+                sprintf(buffer,"0x%x",(INT_PTR)icoPtr->lpIR);
                 Tcl_DStringAppendElement(&dstr,buffer);
                 Tcl_DStringEndSublist(&dstr);
             }
@@ -1608,7 +1613,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
             if(icoPtr->taskbar_txt!=NULL){
                 ckfree(icoPtr->taskbar_txt);
             }
-            icoPtr->taskbar_txt=ckalloc(strlen(newtxt)+1);
+            icoPtr->taskbar_txt=ckalloc((int)strlen(newtxt)+1);
             strcpy(icoPtr->taskbar_txt,newtxt);
         }
         Tcl_AppendResult(interp,icoPtr->taskbar_txt,(char*)NULL);
@@ -1621,7 +1626,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
 #define ICON_BIG            1
 #endif
         HWND h;
-        int result;
+        INT_PTR result = 0;
         int iconsize=ICON_BIG;
         int iconpos;
         if (argc < 4) {
@@ -1654,17 +1659,30 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
         } else {
             hIcon=icoPtr->hIcon;
         }
-        if(!ISWIN32S){
-            result=SendMessage(h,WM_SETICON,iconsize,(LPARAM)hIcon);
+        if (!ISWIN32S){
+            result = SendMessage(h, WM_SETICON, iconsize, (LPARAM)hIcon);
         } else {
-            if(iconsize==ICON_BIG){
-                result=SetClassLong(h,GCL_HICON,(LPARAM)hIcon);
+            if (iconsize==ICON_BIG){
+#ifdef GCLP_HICON
+                result = SetClassLongPtr(h, GCLP_HICON, (LONG_PTR)hIcon);
+#else
+		result = SetClassLong(h, GCL_HICON, (LONG)hIcon);
+#endif
             } else {
                 /*don't permit small icons,bcause they remove the big ones*/
-                result=GetClassLong(h,GCL_HICON);
+#ifdef GCLP_HICON
+                result = GetClassLongPtr(h, GCLP_HICON);
+#else
+		result = GetClassLong(h, GCL_HICON);
+#endif
             }
         }
-        Tcl_SetObjResult(interp, Tcl_NewIntObj(result));
+#if 10 * TCL_MAJOR_VERSION + TCL_MINOR_VERSION < 84
+#errror unexpected
+        Tcl_SetObjResult(interp, Tcl_NewIntObj((int)result));
+#else
+        Tcl_SetObjResult(interp, Tcl_NewWideIntObj(result));
+#endif
         return TCL_OK;
     } else if ((strncmp(argv[1], "taskbar", length) == 0)  && (length >= 2)) {
         //TkWindow * tkwin=NULL;
@@ -1701,7 +1719,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
                 if (args[0][0] != '-')
                     goto wrongargs2;
                 c = args[0][1];
-                length = strlen(args[0]);
+                length = (int)strlen(args[0]);
                 if ((c == '-') && (length == 2)) {
                     break;
                 }
@@ -1738,7 +1756,7 @@ WinIcoCmd(ClientData clientData, Tcl_Interp *interp,
             if (icoPtr->taskbar_command!=NULL) {
                 ckfree((char*)icoPtr->taskbar_command);
             }
-            icoPtr->taskbar_command=ckalloc(strlen(callback)+1);
+            icoPtr->taskbar_command=ckalloc((int)strlen(callback)+1);
             strcpy(icoPtr->taskbar_command,callback);
         }
         return TaskbarOperation(icoPtr, oper, hIcon, txt);

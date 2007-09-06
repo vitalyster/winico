@@ -99,9 +99,10 @@ PACKAGE_VERSION	= @PACKAGE_VERSION@
 CC		= @CC@
 RC              = @RC@
 RES             = @RES@
-RC_DEFINES      = @RC_DEFINES@ @RC_DEFINE@ DOTVERSION="\"$(PACKAGE_VERSION)\"" \
-                  @RC_DEFINE@ VERSION="\"$(PACKAGE_VERSION:.=)\"" \
-                  @RC_DEFINE@ COMMAVERSION="\"$(PACKAGE_VERSION:.=,)\""
+RC_DEFINES      = @RC_DEFINES@ \
+		    @RC_DEFINE@DOTVERSION="\\\"$(PACKAGE_VERSION)\\\"" \
+                    @RC_DEFINE@VERSION="\\\"$(subst .,,$(PACKAGE_VERSION))\\\"" \
+                    @RC_DEFINE@COMMAVERSION="`echo $(PACKAGE_VERSION)|sed 's/\\./,/'`,0,0"
 CFLAGS_DEFAULT	= @CFLAGS_DEFAULT@
 CFLAGS_WARNING	= @CFLAGS_WARNING@
 CLEANFILES	= @CLEANFILES@
