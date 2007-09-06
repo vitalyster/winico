@@ -159,6 +159,9 @@ Please `cd` to its location first.
 #-------------------------------------------------------------------------
 
 PROJECT = Winico
+
+# Uncomment the following line if this is a Tk extension.
+PROJECT_REQUIRES_TK=1
 !include "rules.vc"
 
 DOTVERSION      =0.6
